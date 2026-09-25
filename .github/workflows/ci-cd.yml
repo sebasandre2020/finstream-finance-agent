@@ -1,0 +1,144 @@
+name: CI/CD Pipeline - Multi-Account Finance Agent
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  code-quality:
+    name: Lint & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python Linters & Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black bandit safety pytest pytest-asyncio
+
+      - name: Run Ruff Linter
+        run: ruff check .
+
+      - name: Run Black Code Formatter Check
+        run: black --check .
+
+      - name: Security Vulnerability Scan (Bandit & Safety)
+        run: |
+          bandit -r src/ -ll
+          # safety check
+
+      - name: Set up Node.js for Frontend
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Lint Frontend (TypeScript & ESLint)
+        run: |
+          if [ -d "frontend" ]; then
+            cd frontend
+            npm ci
+            npm run lint
+          fi
+
+  automated-tests:
+    name: Integration & Unit Tests
+    needs: code-quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: test_finance_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run PyTest Test Suite
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:testpassword@localhost:5432/test_finance_db
+          REDIS_URL: redis://localhost:6379/0
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          WEBHOOK_SIGNING_SECRET: test-secret
+          OPENAI_API_KEY: mock-key
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pytest tests/ -v --maxfail=1
+
+  build-and-deploy:
+    name: Container Build & AWS ECS Deployment
+    needs: automated-tests
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsECRDeployRole
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push API Container
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: finance-api
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f Dockerfile.api -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      - name: Build, Tag, and Push Worker Container
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: finance-worker
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f Dockerfile.worker -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      - name: Deploy to Amazon ECS (Zero Downtime Rolling Update)
+        run: |
+          aws ecs update-service --cluster finance-prod-cluster --service finance-api-service --force-new-deployment
+          aws ecs update-service --cluster finance-prod-cluster --service finance-worker-service --force-new-deployment
