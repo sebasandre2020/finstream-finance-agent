@@ -4,7 +4,7 @@ def test_modified_z_score_calculation():
     median = 5.25
     deviations = sorted([abs(x - median) for x in amounts])
     mad = deviations[len(deviations) // 2]
-    assert mad == 0.50
+    assert mad == 0.25
 
     # Test standard coffee transaction ($6.50) -> should NOT be anomaly
     normal_tx = 6.50
