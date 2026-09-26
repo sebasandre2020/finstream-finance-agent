@@ -2,8 +2,9 @@
 
 import hashlib
 import logging
-from typing import Optional
+
 import redis.asyncio as aioredis
+
 from src.core.config import settings
 
 logger = logging.getLogger("IdempotencyService")
@@ -11,14 +12,12 @@ logger = logging.getLogger("IdempotencyService")
 
 class IdempotencyService:
     def __init__(self):
-        self._redis: Optional[aioredis.Redis] = None
+        self._redis: aioredis.Redis | None = None
 
     async def get_client(self) -> aioredis.Redis:
         if self._redis is None:
             self._redis = aioredis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_timeout=2.0
+                settings.REDIS_URL, decode_responses=True, socket_timeout=2.0
             )
         return self._redis
 
@@ -40,10 +39,14 @@ class IdempotencyService:
         try:
             client = await self.get_client()
             # SET key "1" NX EX ttl -> Returns True only if key was set (did not exist)
-            is_new = await client.set(key, "1", nx=True, ex=settings.IDEMPOTENCY_TTL_SECONDS)
+            is_new = await client.set(
+                key, "1", nx=True, ex=settings.IDEMPOTENCY_TTL_SECONDS
+            )
             return bool(is_new)
         except Exception as e:
-            logger.warning("Redis idempotency check failed (%s). Defaulting to pass-through.", e)
+            logger.warning(
+                "Redis idempotency check failed (%s). Defaulting to pass-through.", e
+            )
             return True
 
 

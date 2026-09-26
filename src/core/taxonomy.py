@@ -1,10 +1,9 @@
 """Unified Financial Expense Taxonomy Specification."""
 
-from enum import Enum
-from typing import Dict, List
+from enum import StrEnum
 
 
-class PrimaryCategory(str, Enum):
+class PrimaryCategory(StrEnum):
     FOOD_AND_DINING = "Food & Dining"
     TRANSPORTATION = "Transportation"
     UTILITIES_AND_BILLS = "Utilities & Bills"
@@ -16,14 +15,14 @@ class PrimaryCategory(str, Enum):
     UNCATEGORIZED = "Uncategorized"
 
 
-FINANCIAL_TAXONOMY: Dict[PrimaryCategory, List[str]] = {
+FINANCIAL_TAXONOMY: dict[PrimaryCategory, list[str]] = {
     PrimaryCategory.FOOD_AND_DINING: [
         "Coffee Shops",
         "Restaurants & Dining",
         "Groceries & Supermarkets",
         "Fast Food",
         "Bars & Nightlife",
-        "Food Delivery"
+        "Food Delivery",
     ],
     PrimaryCategory.TRANSPORTATION: [
         "Gas & Fuel",
@@ -31,54 +30,51 @@ FINANCIAL_TAXONOMY: Dict[PrimaryCategory, List[str]] = {
         "Public Transit",
         "Tolls & Parking",
         "Automotive Maintenance",
-        "Airlines & Flights"
+        "Airlines & Flights",
     ],
     PrimaryCategory.UTILITIES_AND_BILLS: [
         "Electric & Gas",
         "Water & Sewage",
         "Internet & Cable",
         "Mobile Phone",
-        "Waste Management"
+        "Waste Management",
     ],
     PrimaryCategory.SHOPPING_AND_RETAIL: [
         "Clothing & Apparel",
         "Electronics & Software",
         "Home Goods & Furniture",
         "General Merchandise",
-        "Sporting Goods"
+        "Sporting Goods",
     ],
     PrimaryCategory.HEALTHCARE_AND_WELLNESS: [
         "Pharmacies & Medicine",
         "Doctors & Clinics",
         "Dental & Vision",
-        "Gym & Fitness"
+        "Gym & Fitness",
     ],
     PrimaryCategory.ENTERTAINMENT_AND_LEISURE: [
         "Streaming Subscriptions",
         "Movies & Theaters",
         "Concerts & Events",
-        "Gaming & Apps"
+        "Gaming & Apps",
     ],
     PrimaryCategory.FINANCIAL_AND_FEES: [
         "Bank Fees",
         "Interest Charges",
         "Investment Services",
-        "Loan Payments"
+        "Loan Payments",
     ],
     PrimaryCategory.INCOME_AND_TRANSFERS: [
         "Payroll & Direct Deposit",
         "Internal Account Transfer",
         "Refunds & Reimbursements",
-        "Dividends & Interest"
+        "Dividends & Interest",
     ],
-    PrimaryCategory.UNCATEGORIZED: [
-        "Manual Review Needed",
-        "Ambiguous Payee"
-    ]
+    PrimaryCategory.UNCATEGORIZED: ["Manual Review Needed", "Ambiguous Payee"],
 }
 
 
-def get_all_subcategories() -> List[str]:
+def get_all_subcategories() -> list[str]:
     subcats = []
     for subs in FINANCIAL_TAXONOMY.values():
         subcats.extend(subs)

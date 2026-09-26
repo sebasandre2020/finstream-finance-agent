@@ -1,32 +1,29 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
-  Activity, 
   AlertTriangle, 
-  ArrowUpRight, 
   Building2, 
   CheckCircle2, 
-  CreditCard, 
   DollarSign, 
   Layers, 
   Radio, 
   Sparkles, 
-  TrendingUp, 
   X 
 } from 'lucide-react';
 import { useLiveTransactions } from './hooks/useLiveTransactions';
-import { Transaction } from './types';
 
 export default function App() {
   const { transactions, anomalies, isConnected, dismissAnomaly } = useLiveTransactions();
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'ledger' | 'anomalies'>('ledger');
 
   const filteredTransactions = transactions.filter((t) => {
     if (selectedAccount === 'all') return true;
     return t.account_id === selectedAccount;
   });
 
-  const totalSpend = filteredTransactions.reduce((acc, t) => acc + (t.amount > 0 ? t.amount : 0), 0);
+  const totalSpend = filteredTransactions.reduce((acc, t) => {
+    const val = Number(t.amount) || 0;
+    return acc + (val > 0 ? val : 0);
+  }, 0);
   const totalAnomalies = filteredTransactions.filter((t) => t.is_anomaly).length;
 
   return (
@@ -77,7 +74,7 @@ export default function App() {
                         {alert.severity} ANOMALY DETECTED
                       </span>
                       <span className="text-xs text-slate-400">
-                        {alert.merchant || 'Unknown Payee'} • ${alert.amount.toFixed(2)}
+                        {alert.merchant || 'Unknown Payee'} • ${(Number(alert.amount) || 0).toFixed(2)}
                       </span>
                     </div>
                     <p className="text-sm text-slate-200 mt-1 font-medium">{alert.reason}</p>
@@ -130,7 +127,7 @@ export default function App() {
               <AlertTriangle className="h-4 w-4 text-amber-400" />
             </div>
             <div className="text-2xl font-bold text-white font-mono">{totalAnomalies} Flagged</div>
-            <p className="text-xs text-slate-500 mt-1">Median Absolute Deviation (MAD > 3.5)</p>
+            <p className="text-xs text-slate-500 mt-1">Median Absolute Deviation (MAD &gt; 3.5)</p>
           </div>
         </div>
 
@@ -261,9 +258,9 @@ export default function App() {
                         )}
                       </td>
                       <td className={`py-3 px-4 text-right font-mono font-bold whitespace-nowrap ${
-                        tx.amount > 0 ? 'text-slate-100' : 'text-emerald-400'
+                        Number(tx.amount) > 0 ? 'text-slate-100' : 'text-emerald-400'
                       }`}>
-                        ${tx.amount.toFixed(2)}
+                        ${(Number(tx.amount) || 0).toFixed(2)}
                       </td>
                     </tr>
                   ))

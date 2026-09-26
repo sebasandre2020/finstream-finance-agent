@@ -3,9 +3,11 @@
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+
 from src.services.sse_broadcaster import sse_broadcaster
 
 logger = logging.getLogger("SSEStreamEndpoint")
@@ -17,7 +19,7 @@ async def event_generator(request: Request) -> AsyncGenerator[str, None]:
     queue = sse_broadcaster.subscribe()
     try:
         # Initial greeting event
-        yield "event: connected\ndata: {\"status\": \"ready\"}\n\n"
+        yield 'event: connected\ndata: {"status": "ready"}\n\n'
 
         while True:
             # Client disconnected check
@@ -30,7 +32,7 @@ async def event_generator(request: Request) -> AsyncGenerator[str, None]:
                 event_name = msg.get("event", "message")
                 payload = json.dumps(msg.get("data", {}), default=str)
                 yield f"event: {event_name}\ndata: {payload}\n\n"
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Heartbeat comment to keep connection alive through ALBs and proxies
                 yield ": ping\n\n"
     except asyncio.CancelledError:
@@ -43,7 +45,7 @@ async def event_generator(request: Request) -> AsyncGenerator[str, None]:
     "/events",
     response_class=StreamingResponse,
     summary="Subscribe to live SSE stream",
-    description="Maintains persistent HTTP streaming connection pushing transaction updates and anomaly alerts."
+    description="Maintains persistent HTTP streaming connection pushing transaction updates and anomaly alerts.",
 )
 async def live_stream(request: Request):
     return StreamingResponse(
@@ -52,6 +54,6 @@ async def live_stream(request: Request):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # Disables proxy buffering in Nginx/ALBs
-        }
+            "X-Accel-Buffering": "no",  # Disables proxy buffering in Nginx/ALBs
+        },
     )

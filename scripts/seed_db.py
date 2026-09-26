@@ -9,15 +9,14 @@ import asyncio
 import math
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.session import AsyncSessionLocal
-from src.db.models import Account, MerchantEntity, Transaction
 from src.core.taxonomy import PrimaryCategory
+from src.db.models import Account, MerchantEntity, Transaction
+from src.db.session import AsyncSessionLocal
 
 
 def generate_deterministic_embedding(seed_str: str, dim: int = 1536) -> list[float]:
@@ -58,7 +57,9 @@ async def seed():
         result = await session.execute(select(Account))
         existing_accounts = result.scalars().all()
         if existing_accounts:
-            print(f"⚠️  Database already contains {len(existing_accounts)} accounts. Skipping account generation.")
+            print(
+                f"⚠️  Database already contains {len(existing_accounts)} accounts. Skipping account generation."
+            )
             return
 
         demo_user_id = uuid.UUID("a0000000-0000-0000-0000-000000000001")
@@ -70,22 +71,22 @@ async def seed():
                 user_id=demo_user_id,
                 institution_name="Chase Sapphire Reserve",
                 account_number_mask="*4821",
-                currency="USD"
+                currency="USD",
             ),
             Account(
                 id=uuid.UUID("b0000000-0000-0000-0000-000000000002"),
                 user_id=demo_user_id,
                 institution_name="Bank of America Advantage Checking",
                 account_number_mask="*9104",
-                currency="USD"
+                currency="USD",
             ),
             Account(
                 id=uuid.UUID("b0000000-0000-0000-0000-000000000003"),
                 user_id=demo_user_id,
                 institution_name="Capital One Venture X",
                 account_number_mask="*1288",
-                currency="USD"
-            )
+                currency="USD",
+            ),
         ]
         session.add_all(accounts)
         await session.flush()
@@ -102,20 +103,22 @@ async def seed():
                     default_category=cat.value,
                     default_subcategory=subcat,
                     embedding=embedding,
-                    occurrence_count=random.randint(10, 50)
+                    occurrence_count=random.randint(10, 50),
                 )
             )
         session.add_all(merchant_objs)
         await session.flush()
-        print(f"✅ Seeded {len(merchant_objs)} normalized merchant entities with 1536-d vectors.")
+        print(
+            f"✅ Seeded {len(merchant_objs)} normalized merchant entities with 1536-d vectors."
+        )
 
         # 4. Generate 60 days of historical baseline transactions
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         historical_txs = []
         for i in range(75):
             acct = random.choice(accounts)
             merch_name, cat, subcat = random.choice(SEED_MERCHANTS)
-            
+
             # Baseline realistic spending ranges
             if subcat == "Coffee Shops":
                 amount = round(Decimal(random.uniform(4.50, 7.50)), 2)
@@ -145,13 +148,15 @@ async def seed():
                     is_anomaly=False,
                     anomaly_reason=None,
                     transaction_time=tx_time,
-                    processed_at=tx_time + timedelta(seconds=1)
+                    processed_at=tx_time + timedelta(seconds=1),
                 )
             )
-        
+
         session.add_all(historical_txs)
         await session.commit()
-        print(f"✅ Seeded {len(historical_txs)} baseline historical transactions across accounts.")
+        print(
+            f"✅ Seeded {len(historical_txs)} baseline historical transactions across accounts."
+        )
         print("🎉 Database seeding complete!")
 
 

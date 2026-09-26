@@ -1,21 +1,18 @@
 """Transaction Ledger and Historical Query Endpoints."""
 
-import uuid
 import base64
 import json
+import uuid
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, desc, and_
-from sqlalchemy.orm import selectinload
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from src.db.models import Transaction
 from src.db.session import get_db
-from src.db.models import Transaction, Account
-from src.schemas.transaction import (
-    TransactionResponse,
-    CursorPaginationResponse
-)
+from src.schemas.transaction import CursorPaginationResponse, TransactionResponse
 
 router = APIRouter(prefix="/transactions", tags=["Transactions Ledger"])
 
@@ -30,26 +27,26 @@ def decode_cursor(cursor_str: str) -> tuple[datetime, uuid.UUID]:
         raw_bytes = base64.urlsafe_b64decode(cursor_str.encode("utf-8"))
         data = json.loads(raw_bytes.decode("utf-8"))
         return datetime.fromisoformat(data["t"]), uuid.UUID(data["id"])
-    except Exception:
+    except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Malformed pagination cursor."
-        )
+            detail="Malformed pagination cursor.",
+        ) from err
 
 
 @router.get(
     "",
     response_model=CursorPaginationResponse,
     summary="Query transaction ledger with cursor pagination",
-    description="Returns filtered multi-account transaction history ordered chronologically."
+    description="Returns filtered multi-account transaction history ordered chronologically.",
 )
 async def list_transactions(
-    account_id: Optional[uuid.UUID] = Query(None, description="Filter by account UUID"),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    is_anomaly: Optional[bool] = Query(None, description="Filter by anomaly status"),
-    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    account_id: uuid.UUID | None = Query(None, description="Filter by account UUID"),
+    category: str | None = Query(None, description="Filter by category"),
+    is_anomaly: bool | None = Query(None, description="Filter by anomaly status"),
+    cursor: str | None = Query(None, description="Pagination cursor"),
     limit: int = Query(50, ge=1, le=100, description="Page limit"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> CursorPaginationResponse:
     filters = []
     if account_id:
@@ -62,10 +59,7 @@ async def list_transactions(
     if cursor:
         cursor_dt, cursor_id = decode_cursor(cursor)
         filters.append(
-            and_(
-                Transaction.transaction_time <= cursor_dt,
-                Transaction.id != cursor_id
-            )
+            and_(Transaction.transaction_time <= cursor_dt, Transaction.id != cursor_id)
         )
 
     # Base query joined with Account
@@ -101,7 +95,7 @@ async def list_transactions(
                 is_anomaly=tx.is_anomaly,
                 anomaly_reason=tx.anomaly_reason,
                 transaction_time=tx.transaction_time,
-                processed_at=tx.processed_at
+                processed_at=tx.processed_at,
             )
         )
 
@@ -111,9 +105,7 @@ async def list_transactions(
         next_cursor = encode_cursor(last_tx.transaction_time, last_tx.id)
 
     return CursorPaginationResponse(
-        data=items,
-        next_cursor=next_cursor,
-        has_more=has_more
+        data=items, next_cursor=next_cursor, has_more=has_more
     )
 
 
@@ -121,11 +113,10 @@ async def list_transactions(
     "/{transaction_id}",
     response_model=TransactionResponse,
     summary="Get single transaction detail",
-    description="Retrieves a specific categorized transaction by ID."
+    description="Retrieves a specific categorized transaction by ID.",
 )
 async def get_transaction(
-    transaction_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db)
+    transaction_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> TransactionResponse:
     stmt = (
         select(Transaction)
@@ -138,7 +129,7 @@ async def get_transaction(
     if not tx:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Transaction {transaction_id} not found."
+            detail=f"Transaction {transaction_id} not found.",
         )
 
     return TransactionResponse(
@@ -156,5 +147,5 @@ async def get_transaction(
         is_anomaly=tx.is_anomaly,
         anomaly_reason=tx.anomaly_reason,
         transaction_time=tx.transaction_time,
-        processed_at=tx.processed_at
+        processed_at=tx.processed_at,
     )

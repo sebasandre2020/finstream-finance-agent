@@ -1,15 +1,18 @@
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
+
+# Ensure project root is on sys.path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-
 from src.core.config import settings
 from src.db.base import Base
-import src.db.models  # Ensure all models are registered
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

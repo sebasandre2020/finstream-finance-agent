@@ -10,18 +10,20 @@ import asyncio
 import hashlib
 import hmac
 import json
+import os
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import httpx
 
 API_URL = "http://localhost:8000/api/v1/webhooks/transactions"
-SECRET_KEY = "local-test-hmac-secret-12345"
+SECRET_KEY = os.getenv("WEBHOOK_SIGNING_SECRET", "local-test-hmac-secret-12345")
 
 TEST_ACCOUNTS = [
     "b0000000-0000-0000-0000-000000000001",
     "b0000000-0000-0000-0000-000000000002",
-    "b0000000-0000-0000-0000-000000000003"
+    "b0000000-0000-0000-0000-000000000003",
 ]
 
 TEST_PAYEES = [
@@ -40,15 +42,15 @@ TEST_PAYEES = [
 
 def sign_payload(body_bytes: bytes, secret: str) -> str:
     return hmac.new(
-        key=secret.encode("utf-8"),
-        msg=body_bytes,
-        digestmod=hashlib.sha256
+        key=secret.encode("utf-8"), msg=body_bytes, digestmod=hashlib.sha256
     ).hexdigest()
 
 
-async def send_mock_webhook(client: httpx.AsyncClient, account_id: str, desc: str, amount: float):
+async def send_mock_webhook(
+    client: httpx.AsyncClient, account_id: str, desc: str, amount: float
+):
     tx_id = f"sim_tx_{uuid.uuid4().hex[:12]}"
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
 
     payload = {
         "account_id": account_id,
@@ -57,7 +59,7 @@ async def send_mock_webhook(client: httpx.AsyncClient, account_id: str, desc: st
         "currency": "USD",
         "raw_description": desc,
         "transaction_time": now_iso,
-        "metadata": {"simulation": True}
+        "metadata": {"simulation": True},
     }
 
     body_bytes = json.dumps(payload).encode("utf-8")
@@ -67,25 +69,34 @@ async def send_mock_webhook(client: httpx.AsyncClient, account_id: str, desc: st
         "Content-Type": "application/json",
         "X-Signature-SHA256": sig,
         "X-Timestamp": now_iso,
-        "X-Bank-Provider": "plaid_simulator"
+        "X-Bank-Provider": "plaid_simulator",
     }
 
     try:
         resp = await client.post(API_URL, content=body_bytes, headers=headers)
-        print(f"[{resp.status_code}] Tx: {tx_id} | ${amount:6.2f} | {desc[:35]}... -> {resp.json().get('status')}")
+        print(
+            f"[{resp.status_code}] Tx: {tx_id} | ${amount:6.2f} | {desc[:35]}... -> {resp.json().get('status')}"
+        )
     except Exception as e:
         print(f"❌ Failed to deliver webhook: {e}")
 
 
 async def main():
     parser = argparse.ArgumentParser(description="Simulate bank transaction stream.")
-    parser.add_argument("--count", type=int, default=10, help="Number of transactions to send")
-    parser.add_argument("--interval", type=float, default=0.8, help="Delay between transactions in seconds")
+    parser.add_argument(
+        "--count", type=int, default=10, help="Number of transactions to send"
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=0.8,
+        help="Delay between transactions in seconds",
+    )
     args = parser.parse_args()
 
     print(f"🚀 Firing {args.count} simulated banking webhooks to {API_URL}...")
     async with httpx.AsyncClient(timeout=5.0) as client:
-        for i in range(args.count):
+        for _ in range(args.count):
             acct = random.choice(TEST_ACCOUNTS)
             desc, amount = random.choice(TEST_PAYEES)
             await send_mock_webhook(client, acct, desc, amount)
