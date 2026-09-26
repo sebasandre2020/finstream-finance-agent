@@ -13,6 +13,19 @@ from src.ai.adapters import LLMAdapterFactory, BaseLLMAdapter
 from src.ai.pgvector_resolver import PgVectorMerchantResolver
 from src.ai.anomaly_engine import AnomalyDetectionEngine
 
+try:
+    from langfuse.decorators import observe, langfuse_context
+except ImportError:
+    try:
+        from langfuse import observe
+        langfuse_context = None
+    except ImportError:
+        def observe(*args, **kwargs):
+            def decorator(f):
+                return f
+            return decorator
+        langfuse_context = None
+
 logger = logging.getLogger("TransactionStateGraph")
 
 
@@ -113,6 +126,7 @@ class TransactionAgentGraph:
         """Determines if pgvector match bypassed the LLM."""
         return "cache_hit" if state.get("matched_from_cache", False) else "cache_miss"
 
+    @observe(name="llm_reflection_node")
     async def _llm_reflection_node(self, state: TransactionState) -> Dict[str, Any]:
         """Invokes LLM reflection cycle to evaluate and classify unknown merchant."""
         iteration = state.get("reflection_iteration", 0) + 1
@@ -151,6 +165,7 @@ class TransactionAgentGraph:
         """Dummy pass-through; actual anomaly calculation occurs in worker with active session."""
         return state
 
+    @observe(name="transaction_reflection_graph")
     async def run(
         self,
         session: AsyncSession,

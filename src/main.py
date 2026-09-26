@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from src.core.config import settings
 from src.services.kafka_producer import kafka_producer_service
+from src.services.sse_broadcaster import sse_broadcaster
 from src.api.v1.webhooks import router as webhooks_router
 from src.api.v1.transactions import router as transactions_router
 from src.api.v1.stream import router as stream_router
@@ -24,8 +25,10 @@ async def lifespan(app: FastAPI):
     """Handles startup and shutdown events for connection pools and message brokers."""
     logger.info("🚀 Starting Multi-Account Financial Intelligence API...")
     await kafka_producer_service.start()
+    await sse_broadcaster.start_listener()
     yield
     logger.info("🛑 Shutting down API service...")
+    await sse_broadcaster.stop_listener()
     await kafka_producer_service.stop()
 
 

@@ -38,9 +38,12 @@ class Settings(BaseSettings):
     KAFKA_CONSUMER_GROUP: str = Field(default="finance-agent-categorizer-group")
 
     # AI & LLM Provider
-    LLM_PROVIDER: str = Field(default="openai", description="openai | anthropic")
+    LLM_PROVIDER: str = Field(default="openai", description="openai | anthropic | minimax")
     OPENAI_API_KEY: Optional[str] = Field(default=None)
     ANTHROPIC_API_KEY: Optional[str] = Field(default=None)
+    MINIMAX_API_KEY: Optional[str] = Field(default=None)
+    MINIMAX_BASE_URL: str = Field(default="https://api.minimax.io/v1")
+    MINIMAX_MODEL: str = Field(default="MiniMax-M3")
     EMBEDDING_MODEL: str = Field(default="text-embedding-3-small")
     EMBEDDING_DIMENSIONS: int = Field(default=1536)
     PGVECTOR_SIMILARITY_THRESHOLD: float = Field(default=0.92)

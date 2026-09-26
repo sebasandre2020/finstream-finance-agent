@@ -65,7 +65,7 @@ class TransactionResponse(BaseModel):
     account_id: uuid.UUID
     institution_name: Optional[str] = None
     ext_transaction_id: str
-    amount: Decimal
+    amount: float
     currency: str
     raw_description: str
     normalized_merchant: Optional[str]
@@ -82,7 +82,7 @@ class AnomalyReport(BaseModel):
     """Real-time anomaly notification payload for React dashboard banner."""
     transaction_id: uuid.UUID
     merchant: Optional[str]
-    amount: Decimal
+    amount: float
     severity: str = Field(description="LOW | MEDIUM | HIGH | CRITICAL")
     reason: str
     requires_action: bool = True

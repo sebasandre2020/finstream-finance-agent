@@ -12,11 +12,12 @@ import hmac
 import json
 import random
 import uuid
+import os
 from datetime import datetime, timezone
 import httpx
 
 API_URL = "http://localhost:8000/api/v1/webhooks/transactions"
-SECRET_KEY = "local-test-hmac-secret-12345"
+SECRET_KEY = os.getenv("WEBHOOK_SIGNING_SECRET", "local-test-hmac-secret-12345")
 
 TEST_ACCOUNTS = [
     "b0000000-0000-0000-0000-000000000001",

@@ -143,6 +143,13 @@ class KafkaAgentWorker:
                 "severity": "HIGH"
             })
 
+        # 4. Flush Langfuse observability traces
+        try:
+            from langfuse.decorators import langfuse_context
+            langfuse_context.flush()
+        except Exception:
+            pass
+
     async def run(self):
         await self.start()
         try:

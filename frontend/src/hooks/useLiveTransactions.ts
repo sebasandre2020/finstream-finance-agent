@@ -13,13 +13,18 @@ export function useLiveTransactions() {
       .then((res) => res.json())
       .then((data) => {
         if (data.data) {
-          setTransactions(data.data);
-          const initialAnomalies: AnomalyAlert[] = data.data
+          const parsedTransactions: Transaction[] = data.data.map((t: any) => ({
+            ...t,
+            amount: Number(t.amount) || 0,
+            confidence_score: Number(t.confidence_score) || 0,
+          }));
+          setTransactions(parsedTransactions);
+          const initialAnomalies: AnomalyAlert[] = parsedTransactions
             .filter((t: Transaction) => t.is_anomaly)
             .map((t: Transaction) => ({
               transaction_id: t.id,
               merchant: t.normalized_merchant,
-              amount: t.amount,
+              amount: Number(t.amount) || 0,
               category: t.category,
               reason: t.anomaly_reason || 'Outlier spending detected',
               severity: 'HIGH' as const,
@@ -40,7 +45,12 @@ export function useLiveTransactions() {
 
       es.addEventListener('transaction_processed', (event) => {
         try {
-          const newTx: Transaction = JSON.parse(event.data);
+          const rawTx = JSON.parse(event.data);
+          const newTx: Transaction = {
+            ...rawTx,
+            amount: Number(rawTx.amount) || 0,
+            confidence_score: Number(rawTx.confidence_score) || 0,
+          };
           setTransactions((prev) => {
             // Deduplicate if already present
             if (prev.some((t) => t.id === newTx.id)) return prev;
@@ -53,7 +63,11 @@ export function useLiveTransactions() {
 
       es.addEventListener('anomaly_detected', (event) => {
         try {
-          const alert: AnomalyAlert = JSON.parse(event.data);
+          const rawAlert = JSON.parse(event.data);
+          const alert: AnomalyAlert = {
+            ...rawAlert,
+            amount: Number(rawAlert.amount) || 0,
+          };
           setAnomalies((prev) => [alert, ...prev.slice(0, 9)]);
         } catch (e) {
           console.error('Error parsing anomaly_detected SSE event:', e);

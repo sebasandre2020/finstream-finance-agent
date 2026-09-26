@@ -36,9 +36,9 @@ class PgVectorMerchantResolver:
                 normalized_name,
                 default_category,
                 default_subcategory,
-                1.0 - (embedding <=> :query_vec::vector) AS similarity
+                1.0 - (embedding <=> CAST(:query_vec AS vector)) AS similarity
             FROM merchant_entities
-            ORDER BY embedding <=> :query_vec::vector ASC
+            ORDER BY embedding <=> CAST(:query_vec AS vector) ASC
             LIMIT 1;
         """)
 
@@ -83,7 +83,7 @@ class PgVectorMerchantResolver:
                 :name, 
                 :cat, 
                 :subcat, 
-                :embedding::vector, 
+                CAST(:embedding AS vector), 
                 1, 
                 NOW(), 
                 NOW()
