@@ -1,9 +1,10 @@
 """Sub-Millisecond Semantic Merchant Resolution using pgvector HNSW Index."""
 
 import logging
-from typing import Optional, Tuple, List
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.config import settings
 
 logger = logging.getLogger("PgVectorMerchantResolver")
@@ -16,23 +17,21 @@ class PgVectorMerchantResolver:
         self.session = session
 
     async def find_closest_merchant(
-        self,
-        query_embedding: List[float],
-        threshold: Optional[float] = None
-    ) -> Optional[Tuple[str, str, Optional[str], float]]:
+        self, query_embedding: list[float], threshold: float | None = None
+    ) -> tuple[str, str, str | None, float] | None:
         """
         Executes an approximate nearest-neighbor query using pgvector HNSW cosine distance (<=>).
         Returns: (normalized_name, default_category, default_subcategory, similarity)
         """
         threshold = threshold or settings.PGVECTOR_SIMILARITY_THRESHOLD
-        
+
         # Set ef_search for optimal query accuracy/latency balance
         await self.session.execute(text("SET LOCAL hnsw.ef_search = 40;"))
 
         # In pgvector: cosine distance d = 1 - cosine_similarity
         # Therefore: similarity = 1 - (embedding <=> :vector)
         sql = text("""
-            SELECT 
+            SELECT
                 normalized_name,
                 default_category,
                 default_subcategory,
@@ -49,13 +48,15 @@ class PgVectorMerchantResolver:
         if row and row.similarity >= threshold:
             logger.debug(
                 "pgvector Cache Hit: '%s' matched with similarity %.4f (threshold: %.2f)",
-                row.normalized_name, row.similarity, threshold
+                row.normalized_name,
+                row.similarity,
+                threshold,
             )
             return (
                 row.normalized_name,
                 row.default_category,
                 row.default_subcategory,
-                float(row.similarity)
+                float(row.similarity),
             )
 
         return None
@@ -64,28 +65,28 @@ class PgVectorMerchantResolver:
         self,
         normalized_name: str,
         category: str,
-        subcategory: Optional[str],
-        embedding: List[float]
+        subcategory: str | None,
+        embedding: list[float],
     ) -> None:
         """Saves a newly categorized merchant into the pgvector cache."""
         vector_str = "[" + ",".join(str(f) for f in embedding) + "]"
         sql = text("""
             INSERT INTO merchant_entities (
-                normalized_name, 
-                default_category, 
-                default_subcategory, 
-                embedding, 
-                occurrence_count, 
-                created_at, 
+                normalized_name,
+                default_category,
+                default_subcategory,
+                embedding,
+                occurrence_count,
+                created_at,
                 last_seen_at
             )
             VALUES (
-                :name, 
-                :cat, 
-                :subcat, 
-                CAST(:embedding AS vector), 
-                1, 
-                NOW(), 
+                :name,
+                :cat,
+                :subcat,
+                CAST(:embedding AS vector),
+                1,
+                NOW(),
                 NOW()
             )
             ON CONFLICT (normalized_name) DO UPDATE SET
@@ -98,7 +99,7 @@ class PgVectorMerchantResolver:
                 "name": normalized_name,
                 "cat": category,
                 "subcat": subcategory,
-                "embedding": vector_str
-            }
+                "embedding": vector_str,
+            },
         )
         await self.session.commit()

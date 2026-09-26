@@ -3,8 +3,10 @@
 import asyncio
 import json
 import logging
-from typing import Set, Dict, Any, Optional
+from typing import Any
+
 import redis.asyncio as aioredis
+
 from src.core.config import settings
 
 logger = logging.getLogger("SSEBroadcaster")
@@ -14,17 +16,16 @@ REDIS_CHANNEL = "finance:sse_events"
 
 class SSEBroadcaster:
     """Manages active streaming connections to browser dashboards and bridges cross-container events via Redis Pub/Sub."""
+
     def __init__(self):
-        self._subscribers: Set[asyncio.Queue] = set()
-        self._redis: Optional[aioredis.Redis] = None
-        self._listener_task: Optional[asyncio.Task] = None
+        self._subscribers: set[asyncio.Queue] = set()
+        self._redis: aioredis.Redis | None = None
+        self._listener_task: asyncio.Task | None = None
 
     async def get_redis(self) -> aioredis.Redis:
         if self._redis is None:
             self._redis = aioredis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_timeout=5.0
+                settings.REDIS_URL, decode_responses=True, socket_timeout=5.0
             )
         return self._redis
 
@@ -64,10 +65,12 @@ class SSEBroadcaster:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.warning("Redis Pub/Sub listener error: %s. Reconnecting in 3s...", e)
+                logger.warning(
+                    "Redis Pub/Sub listener error: %s. Reconnecting in 3s...", e
+                )
                 await asyncio.sleep(3.0)
 
-    def _dispatch_local(self, message: Dict[str, Any]):
+    def _dispatch_local(self, message: dict[str, Any]):
         dead_queues = set()
         for q in self._subscribers:
             try:
@@ -92,26 +95,31 @@ class SSEBroadcaster:
                 self._listener_task = loop.create_task(self._redis_pubsub_listener())
         except RuntimeError:
             pass
-        logger.info("New SSE client subscribed. Total active listeners: %d", len(self._subscribers))
+        logger.info(
+            "New SSE client subscribed. Total active listeners: %d",
+            len(self._subscribers),
+        )
         return queue
 
     def unsubscribe(self, queue: asyncio.Queue) -> None:
         """Removes a client queue on disconnect."""
         self._subscribers.discard(queue)
-        logger.info("SSE client disconnected. Remaining listeners: %d", len(self._subscribers))
+        logger.info(
+            "SSE client disconnected. Remaining listeners: %d", len(self._subscribers)
+        )
 
-    async def broadcast(self, event_type: str, data: Dict[str, Any]) -> None:
+    async def broadcast(self, event_type: str, data: dict[str, Any]) -> None:
         """Dispatches an event payload to local subscribers and publishes via Redis Pub/Sub."""
-        message = {
-            "event": event_type,
-            "data": data
-        }
+        message = {"event": event_type, "data": data}
         # Publish via Redis so other containers (FastAPI API server) receive it
         try:
             client = await self.get_redis()
             await client.publish(REDIS_CHANNEL, json.dumps(message, default=str))
         except Exception as e:
-            logger.warning("Failed to publish SSE event to Redis (%s). Dispatching locally only.", e)
+            logger.warning(
+                "Failed to publish SSE event to Redis (%s). Dispatching locally only.",
+                e,
+            )
             self._dispatch_local(message)
 
 

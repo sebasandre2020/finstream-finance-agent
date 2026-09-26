@@ -2,20 +2,21 @@
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.api.v1.stream import router as stream_router
+from src.api.v1.transactions import router as transactions_router
+from src.api.v1.webhooks import router as webhooks_router
 from src.core.config import settings
 from src.services.kafka_producer import kafka_producer_service
 from src.services.sse_broadcaster import sse_broadcaster
-from src.api.v1.webhooks import router as webhooks_router
-from src.api.v1.transactions import router as transactions_router
-from src.api.v1.stream import router as stream_router
 
 logging.basicConfig(
     level=settings.LOG_LEVEL.upper(),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger("Application")
 
@@ -38,7 +39,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
 )
 
 # CORS configuration for React 19 Frontend
@@ -61,10 +62,12 @@ async def liveness():
     return {"status": "healthy", "service": "finance-api", "version": "1.0.0"}
 
 
-@app.get("/health/ready", tags=["Health & Diagnostics"], summary="Service Readiness Probe")
+@app.get(
+    "/health/ready", tags=["Health & Diagnostics"], summary="Service Readiness Probe"
+)
 async def readiness():
     # Verify critical dependencies
     return JSONResponse(
         status_code=status.HTTP_200_OK,
-        content={"ready": True, "kafka_producer": True, "database": True}
+        content={"ready": True, "kafka_producer": True, "database": True},
     )

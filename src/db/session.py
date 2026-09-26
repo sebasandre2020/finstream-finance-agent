@@ -1,7 +1,9 @@
 """Asynchronous PostgreSQL Database Session Manager."""
 
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from src.core.config import settings
 
 # Configure async engine with connection pooling and health checks
@@ -11,7 +13,7 @@ engine = create_async_engine(
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,  # Proactively test connection before checkout
-    pool_recycle=1800,   # Recycle connections after 30 minutes
+    pool_recycle=1800,  # Recycle connections after 30 minutes
 )
 
 # Async session factory

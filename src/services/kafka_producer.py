@@ -2,8 +2,10 @@
 
 import json
 import logging
-from typing import Optional, Dict, Any
+from typing import Any
+
 from aiokafka import AIOKafkaProducer
+
 from src.core.config import settings
 
 logger = logging.getLogger("KafkaProducerService")
@@ -11,7 +13,7 @@ logger = logging.getLogger("KafkaProducerService")
 
 class KafkaProducerService:
     def __init__(self):
-        self._producer: Optional[AIOKafkaProducer] = None
+        self._producer: AIOKafkaProducer | None = None
 
     async def start(self) -> None:
         """Initialize and connect the AIOKafkaProducer instance."""
@@ -25,9 +27,15 @@ class KafkaProducerService:
             )
             try:
                 await self._producer.start()
-                logger.info("✅ Kafka Producer successfully connected to %s", settings.KAFKA_BOOTSTRAP_SERVERS)
+                logger.info(
+                    "✅ Kafka Producer successfully connected to %s",
+                    settings.KAFKA_BOOTSTRAP_SERVERS,
+                )
             except Exception as e:
-                logger.warning("⚠️ Kafka cluster unreachable at startup (%s). Producer running in fallback mode.", e)
+                logger.warning(
+                    "⚠️ Kafka cluster unreachable at startup (%s). Producer running in fallback mode.",
+                    e,
+                )
 
     async def stop(self) -> None:
         """Gracefully flush and close producer connection."""
@@ -37,16 +45,16 @@ class KafkaProducerService:
             logger.info("Kafka Producer stopped.")
 
     async def publish_transaction_event(
-        self,
-        account_id: str,
-        ext_transaction_id: str,
-        payload: Dict[str, Any]
+        self, account_id: str, ext_transaction_id: str, payload: dict[str, Any]
     ) -> bool:
         """
         Publishes a transaction to Kafka. Partitions by account_id to guarantee sequential ordering.
         """
         if not self._producer:
-            logger.warning("Kafka Producer unavailable. Simulating event dispatch for %s", ext_transaction_id)
+            logger.warning(
+                "Kafka Producer unavailable. Simulating event dispatch for %s",
+                ext_transaction_id,
+            )
             return True
 
         partition_key = str(account_id).encode("utf-8")
@@ -56,10 +64,16 @@ class KafkaProducerService:
                 value=payload,
                 key=partition_key,
             )
-            logger.debug("Published transaction %s to topic %s", ext_transaction_id, settings.KAFKA_RAW_TRANSACTIONS_TOPIC)
+            logger.debug(
+                "Published transaction %s to topic %s",
+                ext_transaction_id,
+                settings.KAFKA_RAW_TRANSACTIONS_TOPIC,
+            )
             return True
         except Exception as e:
-            logger.error("Failed to publish transaction %s to Kafka: %s", ext_transaction_id, e)
+            logger.error(
+                "Failed to publish transaction %s to Kafka: %s", ext_transaction_id, e
+            )
             raise
 
 

@@ -1,0 +1,25 @@
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",   # Line too long (handled by Black formatter)
+    "B008",   # FastAPI Depends and Query in function signature defaults
+    "EXE002", # Executable file without shebang (Windows filesystem artifact)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
