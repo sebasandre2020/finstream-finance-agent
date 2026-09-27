@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Mail, 
-  Sparkles, 
   RefreshCw, 
   CheckCircle2, 
   AlertCircle, 
   Key, 
   ExternalLink,
-  Zap,
-  Globe,
-  ShieldCheck,
-  ArrowRight
+  ShieldCheck, 
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 
 interface EmailConnectModalProps {
@@ -99,7 +97,6 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncResult, setSyncResult] = useState<any>(null);
 
-  // Fetch Google OAuth status when opening modal
   useEffect(() => {
     if (isOpen) {
       checkGoogleStatus();
@@ -109,7 +106,7 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
   const checkGoogleStatus = async () => {
     setIsLoadingStatus(true);
     try {
-      const resp = await fetch('http://localhost:8000/api/v1/auth/google/status');
+      const resp = await fetch('/api/v1/auth/google/status');
       if (resp.ok) {
         const data: GoogleAuthStatus = await resp.json();
         setGoogleStatus(data);
@@ -124,8 +121,7 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   const handleGoogleSignIn = () => {
-    // Redirect browser directly to Google OAuth initiation endpoint
-    window.location.href = 'http://localhost:8000/api/v1/auth/google/login';
+    window.location.href = '/api/v1/auth/google/login';
   };
 
   const handleSelectPreset = (key: string) => {
@@ -143,7 +139,7 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
     setIsProcessing(true);
     setParseResult(null);
     try {
-      const resp = await fetch('http://localhost:8000/api/v1/email/ingest', {
+      const resp = await fetch('/api/v1/email/ingest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sender, subject, body })
@@ -165,7 +161,7 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
     setIsSyncing(true);
     setSyncResult(null);
     try {
-      const resp = await fetch('http://localhost:8000/api/v1/email/sync', {
+      const resp = await fetch('/api/v1/email/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,80 +181,77 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+      <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400">
+            <div className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100">
               <Mail className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                Conectar Banco (BCP / Yape)
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Gratis ($0)
-                </span>
+              <h2 className="text-sm font-bold text-zinc-950 dark:text-zinc-50">
+                Conectar Entidades Bancarias
               </h2>
-              <p className="text-xs text-slate-400">
-                Sincronización automática de notificaciones bancarias en tiempo real
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Lectura automática de notificaciones BCP, BBVA, Falabella y Yape
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Tab Selector */}
-        <div className="flex border-b border-slate-800 bg-slate-950/40 px-6 pt-2">
+        <div className="flex border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/60 px-6 pt-2 gap-2">
           <button
             onClick={() => setActiveTab('google')}
-            className={`pb-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+            className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'google' 
-                ? 'border-blue-500 text-blue-400' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-zinc-950 dark:border-white text-zinc-950 dark:text-white font-bold' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Globe className="h-3.5 w-3.5" />
-            Google Sign-In (Recomendado)
+            <span>Google Sign-In</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+              Directo
+            </span>
           </button>
           <button
             onClick={() => setActiveTab('paste')}
-            className={`pb-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+            className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'paste' 
-                ? 'border-teal-500 text-teal-400' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-zinc-950 dark:border-white text-zinc-950 dark:text-white font-bold' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Zap className="h-3.5 w-3.5" />
-            Probar Plantillas BCP / Yape
+            <span>Plantillas de Prueba</span>
           </button>
           <button
             onClick={() => setActiveTab('imap')}
-            className={`pb-3 px-4 text-xs font-medium border-b-2 transition flex items-center gap-2 ${
+            className={`pb-2.5 px-3 text-xs font-medium border-b-2 transition flex items-center gap-1.5 ${
               activeTab === 'imap' 
-                ? 'border-teal-500 text-teal-400' 
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-zinc-950 dark:border-white text-zinc-950 dark:text-white font-bold' 
+                : 'border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
-            <Key className="h-3.5 w-3.5" />
-            App Password (IMAP)
+            <span>Contraseña IMAP</span>
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-5">
+        {/* Modal Content */}
+        <div className="p-6 overflow-y-auto space-y-4">
           {/* TAB 1: GOOGLE SIGN-IN */}
           {activeTab === 'google' && (
             <div className="space-y-4">
-              <div className="bg-gradient-to-br from-blue-950/40 via-slate-900 to-indigo-950/40 border border-blue-500/20 rounded-xl p-5">
+              <div className="bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5">
                 <div className="flex items-start gap-4">
-                  <div className="p-3 bg-white rounded-xl shadow-md shrink-0">
-                    {/* Official Google G SVG */}
+                  <div className="p-3 bg-white border border-zinc-200 rounded-xl shadow-sm shrink-0">
+                    {/* Official Google G Logo */}
                     <svg className="h-6 w-6" viewBox="0 0 24 24">
                       <path
                         fill="#4285F4"
@@ -279,63 +272,59 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm font-semibold text-white">
-                      Inicio de Sesión Oficial con Google
+                    <h3 className="text-sm font-semibold text-zinc-950 dark:text-zinc-50">
+                      Autenticación Oficial de Google
                     </h3>
-                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                      Conecta tu cuenta en un solo clic. El agente solo solicitará permiso de lectura (<code className="text-blue-300 font-mono text-[11px]">gmail.readonly</code>) para buscar automáticamente notificaciones de <strong className="text-white">BCP</strong> y <strong className="text-white">Yape</strong>.
+                    <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-1 leading-relaxed">
+                      Conecta tu cuenta en un solo clic. El agente solicita permiso de solo lectura (<code className="font-mono text-[11px] text-zinc-800 dark:text-zinc-200">gmail.readonly</code>) para ingerir automáticamente notificaciones bancarias de tus cuentas.
                     </p>
-                    <div className="flex items-center gap-2 mt-3 text-[11px] text-emerald-400">
-                      <ShieldCheck className="h-4 w-4" />
-                      <span>100% seguro: Nunca almacenamos tu contraseña ni alteramos tus correos.</span>
+                    <div className="flex items-center gap-1.5 mt-3 text-[11px] text-zinc-700 dark:text-zinc-300">
+                      <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                      <span>Privacidad garantizada: Sin acceso de modificación ni envío de correos.</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Google Button or Configuration Notice */}
-                <div className="mt-5 pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {/* Google Button */}
+                <div className="mt-5 pt-4 border-t border-zinc-200 dark:border-zinc-800">
                   {googleStatus?.configured ? (
                     <button
                       onClick={handleGoogleSignIn}
-                      className="w-full sm:w-auto flex-1 flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-semibold px-6 py-3 rounded-xl transition shadow-lg hover:shadow-white/10 text-sm group"
+                      className="w-full flex items-center justify-center gap-3 bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-100 dark:text-zinc-950 font-semibold px-6 py-3 rounded-xl transition shadow-md text-xs group"
                     >
-                      {/* Google Icon */}
-                      <svg className="h-5 w-5" viewBox="0 0 24 24">
+                      <svg className="h-4 w-4" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"/>
                         <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.36 24 12 24z"/>
                         <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
                         <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.36 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
                       </svg>
                       <span>Iniciar Sesión con Google</span>
-                      <ArrowRight className="h-4 w-4 ml-1 text-slate-500 group-hover:translate-x-0.5 transition" />
+                      <ArrowRight className="h-4 w-4 ml-1 text-zinc-400 group-hover:translate-x-0.5 transition" />
                     </button>
                   ) : (
-                    <div className="w-full bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-300">
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-amber-600 dark:text-amber-400">
                       <div className="flex items-center gap-2 font-semibold">
-                        <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
-                        <span>Configuración de Google OAuth pendiente</span>
+                        <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
+                        <span>Credenciales Google en espera de configuración</span>
                       </div>
-                      <p className="mt-1 text-slate-400">
-                        Para habilitar este botón con tu cuenta real de Google, sigue la guía paso a paso que el asistente te compartirá para agregar tu <code className="text-amber-200">GOOGLE_CLIENT_ID</code> y <code className="text-amber-200">GOOGLE_CLIENT_SECRET</code> en el archivo <code className="text-amber-200">.env</code>.
+                      <p className="mt-1 text-zinc-600 dark:text-zinc-400">
+                        Configura <code className="font-mono text-zinc-900 dark:text-zinc-100">GOOGLE_CLIENT_ID</code> y <code className="font-mono text-zinc-900 dark:text-zinc-100">GOOGLE_CLIENT_SECRET</code> en tu archivo <code className="font-mono text-zinc-900 dark:text-zinc-100">.env</code> para habilitar el acceso OAuth.
                       </p>
-                      <div className="mt-2 text-[11px] font-mono text-slate-400">
-                        URI de Redirección Autorizada: <span className="text-teal-400">http://localhost:8000/api/v1/auth/google/callback</span>
-                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Status footer */}
-              <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-                <span className="flex items-center gap-1.5">
-                  <span className={`h-2 w-2 rounded-full ${googleStatus?.configured ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-                  {googleStatus?.configured ? 'Google OAuth 2.0 Listo' : 'Credenciales Google por configurar'}
+              <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400 px-1">
+                <span className="flex items-center gap-1.5 font-mono text-[11px]">
+                  <span className={`h-2 w-2 rounded-full ${googleStatus?.configured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                  {googleStatus?.configured ? 'OAuth 2.0 Operativo' : 'OAuth 2.0 Inactivo'}
                 </span>
                 <button
                   onClick={checkGoogleStatus}
                   disabled={isLoadingStatus}
-                  className="flex items-center gap-1 text-slate-400 hover:text-white transition"
+                  className="flex items-center gap-1 text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 transition"
                 >
                   <RefreshCw className={`h-3 w-3 ${isLoadingStatus ? 'animate-spin' : ''}`} />
                   <span>Reverificar</span>
@@ -346,10 +335,10 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
 
           {/* TAB 2: PROBAR PLANTILLA BCP / YAPE */}
           {activeTab === 'paste' && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-2">
-                  Selecciona una plantilla de prueba o pega un correo real:
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                  Selecciona una plantilla de prueba:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.entries(PRESET_EMAILS).map(([key, item]) => (
@@ -358,88 +347,88 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
                       onClick={() => handleSelectPreset(key)}
                       className={`p-2.5 rounded-xl border text-left text-xs transition ${
                         selectedPreset === key 
-                          ? 'bg-teal-500/10 border-teal-500/50 text-teal-300 shadow-sm' 
-                          : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                          ? 'bg-zinc-950 text-white dark:bg-white dark:text-zinc-950 border-zinc-950 dark:border-white font-medium shadow-sm' 
+                          : 'bg-zinc-50 dark:bg-zinc-900/40 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
                       }`}
                     >
                       <span className="font-semibold block truncate">{item.title}</span>
-                      <span className="text-[10px] text-slate-500 block truncate">{item.sender}</span>
+                      <span className="text-[10px] opacity-70 block truncate font-mono mt-0.5">{item.sender}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-mono text-slate-400 mb-1">Remitente</label>
+                  <label className="block text-[11px] font-mono text-zinc-500 dark:text-zinc-400 mb-1">Remitente</label>
                   <input
                     type="text"
                     value={sender}
                     onChange={(e) => setSender(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:border-teal-500 focus:outline-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-zinc-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-mono text-slate-400 mb-1">Asunto</label>
+                  <label className="block text-[11px] font-mono text-zinc-500 dark:text-zinc-400 mb-1">Asunto</label>
                   <input
                     type="text"
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono focus:border-teal-500 focus:outline-none"
+                    className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-zinc-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono text-slate-400 mb-1">
-                  Cuerpo del Correo (HTML o Texto)
+                <label className="block text-[11px] font-mono text-zinc-500 dark:text-zinc-400 mb-1">
+                  Cuerpo del Correo
                 </label>
                 <textarea
-                  rows={6}
+                  rows={4}
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 font-mono focus:border-teal-500 focus:outline-none leading-relaxed"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-zinc-400 leading-relaxed"
                 />
               </div>
 
               <button
                 onClick={handleIngestEmail}
                 disabled={isProcessing}
-                className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition shadow-lg hover:shadow-teal-500/20 text-xs disabled:opacity-50"
+                className="w-full flex items-center justify-center space-x-2 bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-100 dark:text-zinc-950 font-bold px-4 py-2.5 rounded-xl transition text-xs disabled:opacity-50"
               >
                 {isProcessing ? (
                   <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Parseando y Publicando en Kafka...</span>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Procesando notificación bancaria...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-4 w-4" />
-                    <span>Ingestar al Dashboard en Vivo</span>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Ingestar y Procesar en Vivo</span>
                   </>
                 )}
               </button>
 
               {parseResult && (
-                <div className={`p-4 rounded-xl border text-xs animate-fade-in ${
+                <div className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
                   parseResult.status === 'ingested' 
-                    ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200' 
-                    : 'bg-amber-950/30 border-amber-500/30 text-amber-200'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
+                    : 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-300'
                 }`}>
-                  <div className="flex items-center gap-2 font-bold mb-2">
+                  <div className="flex items-center gap-2 font-bold">
                     {parseResult.status === 'ingested' ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-amber-400" />
+                      <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
                     )}
                     <span>{parseResult.message}</span>
                   </div>
                   {parseResult.transaction && (
-                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono mt-2 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
-                      <div><span className="text-slate-400">Comercio:</span> {parseResult.transaction.merchant}</div>
-                      <div><span className="text-slate-400">Monto:</span> {parseResult.transaction.currency} {parseResult.transaction.amount?.toFixed(2)}</div>
-                      <div><span className="text-slate-400">Parser:</span> {parseResult.transaction.parser_used}</div>
-                      <div><span className="text-slate-400">Confianza:</span> {(parseResult.transaction.confidence * 100).toFixed(0)}%</div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono mt-2 bg-white/60 dark:bg-zinc-950/60 p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                      <div><span className="text-zinc-500">Comercio:</span> {parseResult.transaction.merchant}</div>
+                      <div><span className="text-zinc-500">Monto:</span> {parseResult.transaction.currency} {parseResult.transaction.amount?.toFixed(2)}</div>
+                      <div><span className="text-zinc-500">Parser:</span> {parseResult.transaction.parser_used}</div>
+                      <div><span className="text-zinc-500">Confianza:</span> {(parseResult.transaction.confidence * 100).toFixed(0)}%</div>
                     </div>
                   )}
                 </div>
@@ -450,64 +439,66 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
           {/* TAB 3: APP PASSWORD (IMAP) */}
           {activeTab === 'imap' && (
             <div className="space-y-4">
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Key className="h-3.5 w-3.5 text-teal-400" />
-                    Conexión Directa IMAP SSL
+                  <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                    <Key className="h-3.5 w-3.5 text-zinc-500" />
+                    Conexión IMAP SSL
                   </span>
                   <a 
                     href="https://myaccount.google.com/apppasswords" 
                     target="_blank" 
                     rel="noreferrer"
-                    className="text-[11px] text-teal-400 hover:text-teal-300 flex items-center gap-1 underline"
+                    className="text-[11px] text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 flex items-center gap-1 underline"
                   >
-                    Crear Contraseña en Google
+                    Generar en Google
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   <div>
-                    <label className="block text-[11px] font-mono text-slate-400 mb-1">Tu Correo de Gmail</label>
+                    <label className="block text-[11px] font-mono text-zinc-500 dark:text-zinc-400 mb-1">
+                      Correo Gmail
+                    </label>
                     <input
                       type="email"
-                      placeholder="tu_correo@gmail.com"
+                      placeholder="usuario@gmail.com"
                       value={gmailAddress}
                       onChange={(e) => setGmailAddress(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-teal-500 focus:outline-none"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-400"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-mono text-slate-400 mb-1">
-                      Contraseña de Aplicación (16 letras)
+                    <label className="block text-[11px] font-mono text-zinc-500 dark:text-zinc-400 mb-1">
+                      Contraseña de Aplicación (16 dígitos)
                     </label>
                     <input
                       type="password"
-                      placeholder="xxxx xxxx xxxx xxxx"
+                      placeholder="•••• •••• •••• ••••"
                       value={appPassword}
                       onChange={(e) => setAppPassword(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-teal-500 focus:outline-none font-mono tracking-wider"
+                      className="w-full bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-400 font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-1">
-                  <label className="flex items-center space-x-2 text-xs text-slate-400 cursor-pointer">
+                  <label className="flex items-center space-x-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={unreadOnly}
                       onChange={(e) => setUnreadOnly(e.target.checked)}
-                      className="rounded bg-slate-900 border-slate-700 text-teal-500 focus:ring-0"
+                      className="rounded border-zinc-300 dark:border-zinc-700 text-zinc-900 focus:ring-0"
                     />
                     <span>Solo correos no leídos</span>
                   </label>
-                  <div className="flex items-center space-x-2 text-xs text-slate-400">
+                  <div className="flex items-center space-x-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                     <span>Límite:</span>
                     <select
                       value={maxEmails}
                       onChange={(e) => setMaxEmails(Number(e.target.value))}
-                      className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-200"
+                      className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-2 py-0.5 text-xs text-zinc-900 dark:text-zinc-100"
                     >
                       <option value={5}>5 correos</option>
                       <option value={10}>10 correos</option>
@@ -520,43 +511,43 @@ export const EmailConnectModal: React.FC<EmailConnectModalProps> = ({ isOpen, on
               <button
                 onClick={handleSyncGmail}
                 disabled={isSyncing}
-                className="w-full flex items-center justify-center space-x-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl transition shadow-lg text-xs disabled:opacity-50"
+                className="w-full flex items-center justify-center space-x-2 bg-zinc-950 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-100 dark:text-zinc-950 font-bold px-4 py-2.5 rounded-xl transition text-xs disabled:opacity-50"
               >
                 {isSyncing ? (
                   <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Conectando a IMAP y Sincronizando...</span>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    <span>Sincronizando con Gmail IMAP...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className="h-3.5 w-3.5" />
                     <span>Sincronizar Bandeja de Entrada</span>
                   </>
                 )}
               </button>
 
               {syncResult && (
-                <div className={`p-4 rounded-xl border text-xs animate-fade-in ${
+                <div className={`p-3.5 rounded-xl border text-xs animate-fade-in ${
                   syncResult.connected 
-                    ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-200' 
-                    : 'bg-rose-950/30 border-rose-500/30 text-rose-200'
+                    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300' 
+                    : 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-300'
                 }`}>
                   <div className="flex items-center gap-2 font-bold mb-1">
                     {syncResult.connected ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                     ) : (
-                      <AlertCircle className="h-4 w-4 text-rose-400" />
+                      <AlertCircle className="h-4 w-4 text-rose-500" />
                     )}
                     <span>{syncResult.connected ? 'Sincronización Exitosa' : 'Error de Conexión'}</span>
                   </div>
                   {syncResult.connected ? (
-                    <div className="text-[11px] space-y-1 text-slate-300">
+                    <div className="text-[11px] space-y-0.5 text-zinc-700 dark:text-zinc-300 font-mono mt-1">
                       <p>Correos inspeccionados: {syncResult.inspected_count}</p>
                       <p>Transacciones encontradas: {syncResult.parsed_count}</p>
-                      <p className="text-emerald-400 font-semibold">Nuevas transacciones agregadas al dashboard: {syncResult.synced_count}</p>
+                      <p className="font-semibold text-emerald-600 dark:text-emerald-400">Nuevas transacciones agregadas: {syncResult.synced_count}</p>
                     </div>
                   ) : (
-                    <p className="text-[11px] text-rose-300 mt-1">{syncResult.error}</p>
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">{syncResult.error}</p>
                   )}
                 </div>
               )}
