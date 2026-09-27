@@ -7,10 +7,14 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from src.api.v1.accounts import router as accounts_router
+from src.api.v1.auth import router as auth_router
+from src.api.v1.email import router as email_router
 from src.api.v1.stream import router as stream_router
 from src.api.v1.transactions import router as transactions_router
 from src.api.v1.webhooks import router as webhooks_router
 from src.core.config import settings
+from src.services.gmail_realtime_poller import gmail_realtime_poller
 from src.services.kafka_producer import kafka_producer_service
 from src.services.sse_broadcaster import sse_broadcaster
 
@@ -23,12 +27,14 @@ logger = logging.getLogger("Application")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Handles startup and shutdown events for connection pools and message brokers."""
+    """Handles startup and shutdown events for connection pools, message brokers, and background pollers."""
     logger.info("🚀 Starting Multi-Account Financial Intelligence API...")
     await kafka_producer_service.start()
     await sse_broadcaster.start_listener()
+    await gmail_realtime_poller.start()
     yield
     logger.info("🛑 Shutting down API service...")
+    await gmail_realtime_poller.stop()
     await sse_broadcaster.stop_listener()
     await kafka_producer_service.stop()
 
@@ -55,6 +61,9 @@ app.add_middleware(
 app.include_router(webhooks_router, prefix="/api/v1")
 app.include_router(transactions_router, prefix="/api/v1")
 app.include_router(stream_router, prefix="/api/v1")
+app.include_router(email_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(accounts_router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["Health & Diagnostics"], summary="Service Liveness Probe")

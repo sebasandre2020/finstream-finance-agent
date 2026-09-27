@@ -30,4 +30,14 @@ export interface Account {
   institution_name: string;
   account_number_mask: string;
   currency: string;
+  transaction_count?: number;
+  total_spend?: number;
+}
+
+export interface UserSession {
+  email: string;
+  name: string;
+  picture?: string;
+  session_token: string;
+  session_expires: string;
 }

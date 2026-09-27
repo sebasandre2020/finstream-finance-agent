@@ -89,8 +89,14 @@ services:
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
       LANGFUSE_HOST: http://langfuse:3000
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/google/callback}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     volumes:
+      - ./src:/app/src
       - ./scripts:/app/scripts
+      - ./tests:/app/tests
 
   worker:
     build:
@@ -120,6 +126,7 @@ services:
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
       LANGFUSE_HOST: http://langfuse:3000
     volumes:
+      - ./src:/app/src
       - ./scripts:/app/scripts
 
   frontend:

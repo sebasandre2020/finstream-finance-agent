@@ -20,3 +20,10 @@ def test_clean_raw_description_strip_paypal():
     raw = "PAYPAL *NETFLIX.COM"
     cleaned = clean_raw_description(raw)
     assert "Netflix.Com" in cleaned
+
+
+def test_clean_raw_description_strip_peruvian_bank_prefixes():
+    assert clean_raw_description("BCP CARD: RAPPI PERU") == "Rappi Peru"
+    assert clean_raw_description("YAPE CARLOS SANCHEZ") == "Carlos Sanchez"
+    assert clean_raw_description("BCP TRANSFER TO: JUAN PEREZ") == "Juan Perez"
+    assert clean_raw_description("TRANSFERENCIA A: LUZ DEL SUR") == "Luz Del Sur"

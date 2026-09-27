@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -70,33 +71,139 @@ class KafkaAgentWorker:
         logger.info("Consumer worker stopped.")
 
     async def process_record(self, raw_envelope: dict[str, Any], session: AsyncSession):
-        payload = raw_envelope.get("payload", {})
-        account_id_str = payload["account_id"]
-        ext_tx_id = payload["ext_transaction_id"]
-        amount = Decimal(str(payload["amount"]))
-        raw_description = payload["raw_description"]
-        tx_time_str = payload["transaction_time"]
-        tx_time = datetime.fromisoformat(tx_time_str.replace("Z", "+00:00"))
+        payload = (
+            raw_envelope.get("payload")
+            if isinstance(raw_envelope.get("payload"), dict)
+            else raw_envelope
+        )
+        account_id_str = payload.get("account_id")
+        if not account_id_str:
+            logger.error("Skipping message without account_id: %s", payload)
+            return
 
-        # Verify Account exists or create default
+        ext_tx_id = payload.get("ext_transaction_id", f"tx_{uuid.uuid4().hex[:12]}")
+        amount = Decimal(str(payload.get("amount", "0.0")))
+        raw_description = payload.get("raw_description", "Unknown Payee")
+        tx_time_str = payload.get("transaction_time")
+        if tx_time_str:
+            tx_time = datetime.fromisoformat(str(tx_time_str).replace("Z", "+00:00"))
+        else:
+            tx_time = datetime.now(UTC)
+
+        # Detect real banking institution & card/account mask
+        metadata = payload.get("metadata") or {}
+        card_or_account = payload.get("card_or_account") or metadata.get(
+            "card_or_account"
+        )
+        institution_name = payload.get("institution_name")
+        currency = payload.get("currency", "PEN")
+
+        if not institution_name:
+            desc_upper = raw_description.upper()
+            card_str = str(card_or_account or "").upper()
+            source_meta = str(metadata.get("source", "")).upper()
+
+            if source_meta == "YAPE" or "YAPE" in desc_upper or "YAPE" in card_str:
+                institution_name = "Yape"
+                mask = "YAPE"
+            elif source_meta == "BBVA_CARD" or "BBVA CARD" in desc_upper:
+                digits = re.findall(r"\d{4}", card_str)
+                mask = f"*{digits[0]}" if digits else "*4079"
+                institution_name = "BBVA Tarjeta"
+            elif source_meta == "PLIN_TRANSFER" or (
+                "PLIN" in desc_upper
+                and (
+                    "BBVA" in desc_upper
+                    or "PLINEASTE" in desc_upper
+                    or "TE PLINEARON" in desc_upper
+                )
+            ):
+                institution_name = "BBVA Plin"
+                mask = "PLIN"
+            elif (
+                source_meta == "FALABELLA_CMR"
+                or "CMR" in desc_upper
+                or "FALABELLA" in desc_upper
+            ):
+                digits = re.findall(r"\d{4}", card_str)
+                mask = f"*{digits[0]}" if digits else "*4422"
+                institution_name = "Banco Falabella CMR"
+            elif (
+                source_meta == "BCP_CARD"
+                or "BCP CARD" in desc_upper
+                or ("CARD" in card_str and "BCP" in desc_upper)
+            ):
+                digits = re.findall(r"\d{4}", card_str)
+                mask = f"*{digits[0]}" if digits else "*8590"
+                institution_name = "BCP Tarjeta"
+            elif (
+                "SERVICIO" in desc_upper
+                or "PAGO" in desc_upper
+                or "RECIBO" in desc_upper
+            ):
+                institution_name = "BCP Pagos y Servicios"
+                mask = "*PAGOS"
+            elif (
+                "TRANSFER" in desc_upper
+                or "CUENTA" in card_str
+                or "BENEFICIARIO" in desc_upper
+            ):
+                digits = re.findall(r"\d{4}", card_str)
+                mask = f"*{digits[0]}" if digits else "*ACCT"
+                institution_name = "BCP Transferencia / Cuenta"
+            else:
+                digits = re.findall(r"\d{4}", card_str)
+                if digits:
+                    mask = f"*{digits[0]}"
+                    institution_name = "BCP Tarjeta"
+                else:
+                    institution_name = "BCP Banco de Crédito"
+                    mask = "*0000"
+        else:
+            mask = payload.get("account_number_mask", "*0000")
+
+        # Verify Account exists or create/update
         acct_uuid = uuid.UUID(account_id_str)
-        acct_res = await session.execute(select(Account).where(Account.id == acct_uuid))
+        acct_res = await session.execute(
+            select(Account).where(
+                Account.institution_name == institution_name,
+                Account.account_number_mask == mask,
+            )
+        )
         account = acct_res.scalar_one_or_none()
         if not account:
-            account = Account(
-                id=acct_uuid,
-                user_id=uuid.uuid4(),
-                institution_name="Primary Connected Account",
-                account_number_mask="*0000",
-                currency="USD",
+            acct_by_id = await session.execute(
+                select(Account).where(Account.id == acct_uuid)
             )
-            session.add(account)
-            await session.flush()
+            account = acct_by_id.scalar_one_or_none()
+            if account and (
+                "Chase" in account.institution_name
+                or "America" in account.institution_name
+                or "Capital" in account.institution_name
+                or "Primary" in account.institution_name
+            ):
+                account.institution_name = institution_name
+                account.account_number_mask = mask
+                account.currency = currency
+                session.add(account)
+                await session.flush()
+            elif not account:
+                account = Account(
+                    id=acct_uuid,
+                    user_id=uuid.uuid4(),
+                    institution_name=institution_name,
+                    account_number_mask=mask,
+                    currency=currency,
+                )
+                session.add(account)
+                await session.flush()
+
+        acct_uuid = account.id
 
         # 1. Run LangGraph reflection & entity classification
         agent_state = await transaction_agent_graph.run(
             session=session,
-            account_id=account_id_str,
+            account_id=str(acct_uuid),
             ext_transaction_id=ext_tx_id,
             amount=amount,
             raw_description=raw_description,
@@ -126,8 +233,11 @@ class KafkaAgentWorker:
             "id": str(transaction.id),
             "account_id": str(transaction.account_id),
             "institution_name": account.institution_name,
+            "account_number_mask": account.account_number_mask,
             "ext_transaction_id": transaction.ext_transaction_id,
             "amount": float(transaction.amount),
+            "currency": account.currency,
+            "raw_description": transaction.raw_description,
             "normalized_merchant": transaction.normalized_merchant,
             "category": transaction.category,
             "sub_category": transaction.sub_category,

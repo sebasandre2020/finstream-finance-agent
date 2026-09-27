@@ -58,7 +58,7 @@ def clean_raw_description(raw: str) -> str:
     cleaned = raw.strip()
     # Strip common payment processor prefixes
     cleaned = re.sub(
-        r"^(SQ\s*\*|TST\*\s*|PAYPAL\s*\*|SP\s*\*|CHECKOUT\s*\*|AMZN\s+MKTP\s+US\*)",
+        r"^(SQ\s*\*|TST\*\s*|PAYPAL\s*\*|SP\s*\*|CHECKOUT\s*\*|AMZN\s+MKTP\s+US\*|BCP\s+CARD:\s*|YAPE:\s*|YAPE\s*|BCP\s+TRANSFER\s+TO:\s*|BCP\s+TRANSFER\s+TO\s*|TRANSFERENCIA\s+A:\s*|PAGO\s+A:\s*)",
         "",
         cleaned,
         flags=re.IGNORECASE,
