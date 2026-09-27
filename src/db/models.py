@@ -124,3 +124,38 @@ class Transaction(Base):
 
     def __repr__(self) -> str:
         return f"<Transaction(id={self.id}, amount={self.amount}, merchant='{self.normalized_merchant}', category='{self.category}')>"
+
+
+class GoogleUserSession(Base):
+    """Stores authenticated Google user profile, tokens, and 7-day session state."""
+
+    __tablename__ = "google_user_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=True)
+    picture: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    session_token: Mapped[str] = mapped_column(
+        String(255), unique=True, nullable=False, index=True
+    )
+    session_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<GoogleUserSession(email='{self.email}', session_expires='{self.session_expires_at}')>"

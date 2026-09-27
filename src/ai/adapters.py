@@ -35,11 +35,14 @@ class BaseLLMAdapter(ABC):
             "merchant_name": str,
             "category": str,
             "subcategory": str,
-            "confidence": float,
             "critique": str,
             "is_valid": bool
         }
         """
+
+    @abstractmethod
+    async def extract_transaction_from_text(self, text: str) -> dict[str, Any]:
+        """Extract structured transaction details from unstructured email/receipt text."""
 
 
 class OpenAIAdapter(BaseLLMAdapter):
@@ -109,6 +112,48 @@ Respond ONLY in valid JSON matching this schema:
             "temperature": 0.1,
         }
         async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/chat/completions", headers=headers, json=payload
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            return json.loads(content)
+
+    async def extract_transaction_from_text(self, text: str) -> dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        system_prompt = (
+            "You are a Banking Email Parser. Extract structured financial transaction details from the provided email/receipt text. "
+            "If the email is not a financial transaction notification (e.g. newsletter, promo, security alert), set 'is_transaction' to false."
+        )
+        user_prompt = f"""
+Analyze this bank/fintech notification email and extract key fields:
+{text[:2000]}
+
+Respond ONLY with a JSON object matching this schema:
+{{
+    "is_transaction": true,
+    "merchant": "Name of the merchant, store, or recipient (e.g. Starbucks, Uber, Rappi, Juan Perez)",
+    "amount": 25.50,
+    "currency": "PEN",
+    "transaction_time": "2026-09-26T14:15:00Z",
+    "card_last4": "1234",
+    "operation_type": "DEBIT",
+    "confidence": 0.95
+}}
+"""
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.0,
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
             resp = await client.post(
                 f"{self.base_url}/chat/completions", headers=headers, json=payload
             )
@@ -218,6 +263,76 @@ Respond ONLY with a valid JSON object matching this schema, without markdown for
 
             return json.loads(content_clean)
 
+    async def extract_transaction_from_text(self, text: str) -> dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        system_prompt = (
+            "You are a Banking Email Parser. Extract structured financial transaction details from the provided email or receipt text. "
+            "If the email is not a financial transaction notification (e.g. newsletter, promo, security alert), set 'is_transaction' to false."
+        )
+        user_prompt = f"""
+Analyze this bank/fintech notification email and extract key fields:
+{text[:2000]}
+
+Respond ONLY with a valid JSON object matching this schema, without markdown formatting or code blocks:
+{{
+    "is_transaction": true,
+    "merchant": "Name of the merchant, store, or recipient (e.g. Starbucks, Uber, Rappi, Juan Perez)",
+    "amount": 25.50,
+    "currency": "PEN",
+    "transaction_time": "2026-09-26T14:15:00Z",
+    "card_last4": "1234",
+    "operation_type": "DEBIT",
+    "confidence": 0.95
+}}
+"""
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{self.base_url}/chat/completions", headers=headers, json=payload
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+
+            import re
+
+            content_clean = re.sub(
+                r"<think>.*?</think>", "", content, flags=re.DOTALL
+            ).strip()
+
+            if "```" in content_clean:
+                match = re.search(
+                    r"```(?:json)?\s*(\{.*?\})\s*```", content_clean, flags=re.DOTALL
+                )
+                if match:
+                    content_clean = match.group(1).strip()
+                else:
+                    lines = content_clean.split("\n")
+                    lines = [
+                        line for line in lines if not line.strip().startswith("```")
+                    ]
+                    content_clean = "\n".join(lines).strip()
+
+            if (
+                not content_clean.startswith("{")
+                and "{" in content_clean
+                and "}" in content_clean
+            ):
+                start_idx = content_clean.find("{")
+                end_idx = content_clean.rfind("}")
+                content_clean = content_clean[start_idx : end_idx + 1]
+
+            return json.loads(content_clean)
+
 
 class MockLLMAdapter(BaseLLMAdapter):
     """Deterministic offline adapter for unit testing and local development without API keys."""
@@ -281,6 +396,41 @@ class MockLLMAdapter(BaseLLMAdapter):
                 "critique": "General retail classification assigned based on generic descriptor.",
                 "is_valid": True,
             }
+
+    async def extract_transaction_from_text(self, text: str) -> dict[str, Any]:
+        text_upper = text.upper()
+        if (
+            "BCP" in text_upper
+            or "YAPE" in text_upper
+            or "CONSUMO" in text_upper
+            or "CONSTANCIA" in text_upper
+            or "TRANSFERENCIA" in text_upper
+        ):
+            # Extract mock or detected numbers
+            import re
+
+            amount_match = re.search(r"(\d+(?:\.\d{2})?)", text)
+            amount = float(amount_match.group(1)) if amount_match else 35.00
+            return {
+                "is_transaction": True,
+                "merchant": "MOCK BCP STORE",
+                "amount": amount,
+                "currency": "PEN",
+                "transaction_time": "2026-09-26T14:00:00Z",
+                "card_last4": "1234",
+                "operation_type": "DEBIT",
+                "confidence": 0.95,
+            }
+        return {
+            "is_transaction": False,
+            "merchant": None,
+            "amount": None,
+            "currency": "PEN",
+            "transaction_time": None,
+            "card_last4": None,
+            "operation_type": "DEBIT",
+            "confidence": 0.0,
+        }
 
 
 class LLMAdapterFactory:

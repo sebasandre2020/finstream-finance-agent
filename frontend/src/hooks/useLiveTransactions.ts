@@ -1,15 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
-import { Transaction, AnomalyAlert } from '../types';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Transaction, AnomalyAlert, Account } from '../types';
 
 export function useLiveTransactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    // Initial fetch of recent ledger records
-    fetch('/api/v1/transactions?limit=25')
+  const fetchTransactions = useCallback(() => {
+    fetch('/api/v1/transactions?limit=50')
       .then((res) => res.json())
       .then((data) => {
         if (data.data) {
@@ -32,7 +32,23 @@ export function useLiveTransactions() {
           setAnomalies(initialAnomalies);
         }
       })
-      .catch((err) => console.error('Failed to load initial transactions:', err));
+      .catch((err) => console.error('Failed to load transactions:', err));
+  }, []);
+
+  const fetchAccounts = useCallback(() => {
+    fetch('/api/v1/accounts')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setAccounts(data);
+        }
+      })
+      .catch((err) => console.error('Failed to load accounts:', err));
+  }, []);
+
+  useEffect(() => {
+    fetchTransactions();
+    fetchAccounts();
 
     // Connect to SSE Stream
     const connectSSE = () => {
@@ -52,10 +68,11 @@ export function useLiveTransactions() {
             confidence_score: Number(rawTx.confidence_score) || 0,
           };
           setTransactions((prev) => {
-            // Deduplicate if already present
             if (prev.some((t) => t.id === newTx.id)) return prev;
             return [newTx, ...prev.slice(0, 49)];
           });
+          // Also refresh accounts stats
+          fetchAccounts();
         } catch (e) {
           console.error('Error parsing transaction_processed SSE event:', e);
         }
@@ -74,6 +91,16 @@ export function useLiveTransactions() {
         }
       });
 
+      es.addEventListener('gmail_sync_complete', (event) => {
+        try {
+          console.info('Gmail Realtime Poller Synced New Emails:', event.data);
+          fetchTransactions();
+          fetchAccounts();
+        } catch (e) {
+          console.error('Error handling gmail_sync_complete event:', e);
+        }
+      });
+
       es.onerror = () => {
         setIsConnected(false);
         es.close();
@@ -89,11 +116,19 @@ export function useLiveTransactions() {
         eventSourceRef.current.close();
       }
     };
-  }, []);
+  }, [fetchTransactions, fetchAccounts]);
 
   const dismissAnomaly = (txId: string) => {
     setAnomalies((prev) => prev.filter((a) => a.transaction_id !== txId));
   };
 
-  return { transactions, anomalies, isConnected, dismissAnomaly };
+  return { 
+    transactions, 
+    anomalies, 
+    accounts, 
+    isConnected, 
+    dismissAnomaly,
+    refreshTransactions: fetchTransactions,
+    refreshAccounts: fetchAccounts
+  };
 }

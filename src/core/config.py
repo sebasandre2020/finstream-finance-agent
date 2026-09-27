@@ -52,5 +52,13 @@ class Settings(BaseSettings):
     LANGFUSE_SECRET_KEY: str | None = Field(default=None)
     LANGFUSE_HOST: str = Field(default="http://localhost:3001")
 
+    # Google OAuth 2.0 & Gmail Integration
+    GOOGLE_CLIENT_ID: str | None = Field(default=None)
+    GOOGLE_CLIENT_SECRET: str | None = Field(default=None)
+    GOOGLE_REDIRECT_URI: str = Field(
+        default="http://localhost:8000/api/v1/auth/google/callback"
+    )
+    FRONTEND_URL: str = Field(default="http://localhost:3000")
+
 
 settings = Settings()
