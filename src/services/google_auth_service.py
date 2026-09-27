@@ -204,7 +204,10 @@ class GoogleAuthService:
 
             # Fetch up to 2 pages (up to 200 emails)
             while pages_fetched < 2:
-                search_params = {"q": GMAIL_BANK_QUERY, "maxResults": min(max_results, 100)}
+                search_params = {
+                    "q": GMAIL_BANK_QUERY,
+                    "maxResults": min(max_results, 100),
+                }
                 if page_token:
                     search_params["pageToken"] = page_token
 
@@ -227,7 +230,9 @@ class GoogleAuthService:
                 if not page_token or not page_msgs:
                     break
 
-            logger.info("Found %d candidate banking messages in Gmail.", len(messages_meta))
+            logger.info(
+                "Found %d candidate banking messages in Gmail.", len(messages_meta)
+            )
 
             inspected_count = 0
             found_count = 0
@@ -259,6 +264,7 @@ class GoogleAuthService:
                 if date_str:
                     try:
                         from email.utils import parsedate_to_datetime
+
                         email_dt = parsedate_to_datetime(date_str).astimezone(UTC)
                     except Exception:
                         email_dt = None
@@ -306,18 +312,33 @@ class GoogleAuthService:
                     mask = "YAPE"
 
                 # 2. BBVA Card Consumption
-                elif source_meta == "BBVA_CARD" or "BBVA CARD" in desc_upper or ("BBVA" in sender_upper and "TARJETA" in desc_upper):
+                elif (
+                    source_meta == "BBVA_CARD"
+                    or "BBVA CARD" in desc_upper
+                    or ("BBVA" in sender_upper and "TARJETA" in desc_upper)
+                ):
                     digits = re.findall(r"\d{4}", card_str)
                     mask = f"*{digits[0]}" if digits else "*4079"
                     institution = "BBVA Tarjeta"
 
                 # 3. BBVA Plin Transfers (sent or received via Plin)
-                elif source_meta == "PLIN_TRANSFER" or ("PLIN" in desc_upper and ("BBVA" in sender_upper or "PLINEASTE" in desc_upper or "TE PLINEARON" in desc_upper)):
+                elif source_meta == "PLIN_TRANSFER" or (
+                    "PLIN" in desc_upper
+                    and (
+                        "BBVA" in sender_upper
+                        or "PLINEASTE" in desc_upper
+                        or "TE PLINEARON" in desc_upper
+                    )
+                ):
                     institution = "BBVA Plin"
                     mask = "PLIN"
 
                 # 4. Falabella CMR Card
-                elif source_meta == "FALABELLA_CMR" or "CMR" in desc_upper or "FALABELLA" in sender_upper:
+                elif (
+                    source_meta == "FALABELLA_CMR"
+                    or "CMR" in desc_upper
+                    or "FALABELLA" in sender_upper
+                ):
                     digits = re.findall(r"\d{4}", card_str)
                     mask = f"*{digits[0]}" if digits else "*4422"
                     institution = "Banco Falabella CMR"

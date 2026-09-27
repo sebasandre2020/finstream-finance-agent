@@ -205,11 +205,19 @@ class EmailTransactionParser:
     ) -> EmailTransactionResult | None:
         """Regex parser for PLIN transfers (sent or received via BBVA, Interbank, or Scotiabank)."""
         upper_text = text.upper()
-        if not ("PLIN" in upper_text or "PLINEASTE" in upper_text or "TE PLINEARON" in upper_text):
+        if not (
+            "PLIN" in upper_text
+            or "PLINEASTE" in upper_text
+            or "TE PLINEARON" in upper_text
+        ):
             return None
 
         # Check for rejection
-        if "RECHAZADA" in upper_text or "RECHAZADO" in upper_text or "NO SE PUDO REALIZAR" in upper_text:
+        if (
+            "RECHAZADA" in upper_text
+            or "RECHAZADO" in upper_text
+            or "NO SE PUDO REALIZAR" in upper_text
+        ):
             return None
 
         plin_match = re.search(
@@ -234,10 +242,14 @@ class EmailTransactionParser:
         dest_suffix = f" (vía {dest_app.group(1).strip()})" if dest_app else ""
         merchant = f"Plin - {beneficiary}{dest_suffix}"
 
-        op_match = re.search(r"Número de operación\s*:\s*([a-zA-Z0-9]+)", text, re.IGNORECASE)
+        op_match = re.search(
+            r"Número de operación\s*:\s*([a-zA-Z0-9]+)", text, re.IGNORECASE
+        )
         op_num = op_match.group(1) if op_match else None
 
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         if op_num:
             ext_id = f"plin_{op_num}"
@@ -270,7 +282,11 @@ class EmailTransactionParser:
     ) -> EmailTransactionResult | None:
         """Regex parser for Banco Falabella CMR Card consumption notifications."""
         upper_text = text.upper()
-        if not ("CMR" in upper_text or "BANCO FALABELLA" in upper_text or "FALABELLA" in upper_text):
+        if not (
+            "CMR" in upper_text
+            or "BANCO FALABELLA" in upper_text
+            or "FALABELLA" in upper_text
+        ):
             return None
 
         merchant_match = re.search(
@@ -294,10 +310,14 @@ class EmailTransactionParser:
         card_last4 = card_match.group(1) if card_match else None
 
         # Operation number
-        op_match = re.search(r"Número de operación\s*:\s*([a-zA-Z0-9]+)", text, re.IGNORECASE)
+        op_match = re.search(
+            r"Número de operación\s*:\s*([a-zA-Z0-9]+)", text, re.IGNORECASE
+        )
         op_num = op_match.group(1) if op_match else None
 
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         if op_num:
             ext_id = f"cmr_{op_num}"
@@ -354,7 +374,11 @@ class EmailTransactionParser:
             or "PAGAR CON QR" in upper_text
             or "PAGO A COMERCIOS CON QR" in upper_text
         ):
-            if "VISA" in upper_text or "TARJETA" in upper_text or "VISA COMPRAS" in upper_text:
+            if (
+                "VISA" in upper_text
+                or "TARJETA" in upper_text
+                or "VISA COMPRAS" in upper_text
+            ):
                 return EmailTransactionResult(
                     is_transaction=False,
                     parser_used="bbva_qr_card_duplicate_skip",
@@ -387,7 +411,9 @@ class EmailTransactionParser:
         )
         op_num = op_match.group(1) if op_match else None
 
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         if op_num:
             ext_id = f"bbva_{op_num}"
@@ -425,7 +451,12 @@ class EmailTransactionParser:
         """Regex parser for BCP debit/credit card consumption alerts."""
         upper_text = text.upper()
         subj_upper = (subject or "").upper()
-        if "BBVA" in upper_text or "BBVA" in subj_upper or "CMR" in upper_text or "FALABELLA" in upper_text:
+        if (
+            "BBVA" in upper_text
+            or "BBVA" in subj_upper
+            or "CMR" in upper_text
+            or "FALABELLA" in upper_text
+        ):
             return None
 
         if not (
@@ -450,9 +481,16 @@ class EmailTransactionParser:
 
         merchant = merchant_match.group(1).strip()
         # Clean merchant name from trailing technical keywords and delimiters
-        merchant = re.sub(
-            r"\s*-\s*(?:Canal|POS|Internet|Vía).*$", "", merchant, flags=re.IGNORECASE
-        ).strip().rstrip(" :.-")
+        merchant = (
+            re.sub(
+                r"\s*-\s*(?:Canal|POS|Internet|Vía).*$",
+                "",
+                merchant,
+                flags=re.IGNORECASE,
+            )
+            .strip()
+            .rstrip(" :.-")
+        )
 
         # Masked card across multiline table layouts
         card_match = re.search(
@@ -471,7 +509,9 @@ class EmailTransactionParser:
         op_num = op_match.group(1) if op_match else None
 
         # Timestamp
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         if op_num:
             ext_id = f"bcp_{op_num}"
@@ -523,7 +563,9 @@ class EmailTransactionParser:
             return None
 
         empresa = empresa_match.group(1).strip().rstrip(" :.-")
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         op_match = re.search(
             r"(?:Número de operación|N° Operación)\s*:\s*([a-zA-Z0-9]+)",
@@ -551,7 +593,10 @@ class EmailTransactionParser:
             confidence=0.98,
             raw_description=f"BCP PAGO SERVICIO: {empresa}",
             ext_transaction_id=ext_id,
-            metadata={"source": "bcp_service_payment_email", "operation_number": op_num},
+            metadata={
+                "source": "bcp_service_payment_email",
+                "operation_number": op_num,
+            },
         )
 
     def _parse_yape(
@@ -624,7 +669,9 @@ class EmailTransactionParser:
             else ("Contacto Yape" if not is_received else "Remitente Yape")
         )
 
-        tx_time = self._extract_transaction_datetime(text, fallback_dt=email_date_header)
+        tx_time = self._extract_transaction_datetime(
+            text, fallback_dt=email_date_header
+        )
 
         if op_num:
             ext_id = f"yape_{op_num}"
@@ -677,7 +724,9 @@ class EmailTransactionParser:
             text,
             re.IGNORECASE,
         )
-        acct_source = account_match.group(1).strip().rstrip(" :.-") if account_match else None
+        acct_source = (
+            account_match.group(1).strip().rstrip(" :.-") if account_match else None
+        )
 
         op_match = re.search(
             r"(?:Número de operación|N° Operación)\s*:\s*([a-zA-Z0-9]+)",
@@ -721,7 +770,9 @@ class EmailTransactionParser:
         """Fallback LLM extractor for unstructured emails or unfamiliar bank layouts."""
         combined_context = f"Sender: {sender or 'Unknown'}\nSubject: {subject or 'Unknown'}\n\nBody:\n{text[:2500]}"
         try:
-            data = await self.llm_adapter.extract_transaction_from_text(combined_context)
+            data = await self.llm_adapter.extract_transaction_from_text(
+                combined_context
+            )
             is_tx = bool(data.get("is_transaction", False))
             if not is_tx or not data.get("amount"):
                 return EmailTransactionResult(
@@ -875,9 +926,21 @@ class EmailTransactionParser:
             year = int(m_spanish.group(3))
             has_time = bool(m_spanish.group(4))
             fb_local = fallback_dt.astimezone(peru_tz) if fallback_dt else None
-            hour = int(m_spanish.group(4)) if has_time else (fb_local.hour if fb_local else 12)
-            minute = int(m_spanish.group(5)) if has_time else (fb_local.minute if fb_local else 0)
-            second = int(m_spanish.group(6)) if m_spanish.group(6) else (fb_local.second if fb_local else 0)
+            hour = (
+                int(m_spanish.group(4))
+                if has_time
+                else (fb_local.hour if fb_local else 12)
+            )
+            minute = (
+                int(m_spanish.group(5))
+                if has_time
+                else (fb_local.minute if fb_local else 0)
+            )
+            second = (
+                int(m_spanish.group(6))
+                if m_spanish.group(6)
+                else (fb_local.second if fb_local else 0)
+            )
             ampm = m_spanish.group(7)
             if ampm and has_time:
                 ampm = ampm.upper()
@@ -903,8 +966,16 @@ class EmailTransactionParser:
             year = int(m_fala.group(3))
             has_time = bool(m_fala.group(4))
             fb_local = fallback_dt.astimezone(peru_tz) if fallback_dt else None
-            hour = int(m_fala.group(4)) if has_time else (fb_local.hour if fb_local else 12)
-            minute = int(m_fala.group(5)) if has_time else (fb_local.minute if fb_local else 0)
+            hour = (
+                int(m_fala.group(4))
+                if has_time
+                else (fb_local.hour if fb_local else 12)
+            )
+            minute = (
+                int(m_fala.group(5))
+                if has_time
+                else (fb_local.minute if fb_local else 0)
+            )
             try:
                 dt = datetime(year, month, day, hour, minute, 0, tzinfo=peru_tz)
                 return dt.astimezone(UTC)

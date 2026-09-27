@@ -110,10 +110,21 @@ class KafkaAgentWorker:
                 digits = re.findall(r"\d{4}", card_str)
                 mask = f"*{digits[0]}" if digits else "*4079"
                 institution_name = "BBVA Tarjeta"
-            elif source_meta == "PLIN_TRANSFER" or ("PLIN" in desc_upper and ("BBVA" in desc_upper or "PLINEASTE" in desc_upper or "TE PLINEARON" in desc_upper)):
+            elif source_meta == "PLIN_TRANSFER" or (
+                "PLIN" in desc_upper
+                and (
+                    "BBVA" in desc_upper
+                    or "PLINEASTE" in desc_upper
+                    or "TE PLINEARON" in desc_upper
+                )
+            ):
                 institution_name = "BBVA Plin"
                 mask = "PLIN"
-            elif source_meta == "FALABELLA_CMR" or "CMR" in desc_upper or "FALABELLA" in desc_upper:
+            elif (
+                source_meta == "FALABELLA_CMR"
+                or "CMR" in desc_upper
+                or "FALABELLA" in desc_upper
+            ):
                 digits = re.findall(r"\d{4}", card_str)
                 mask = f"*{digits[0]}" if digits else "*4422"
                 institution_name = "Banco Falabella CMR"
@@ -125,7 +136,11 @@ class KafkaAgentWorker:
                 digits = re.findall(r"\d{4}", card_str)
                 mask = f"*{digits[0]}" if digits else "*8590"
                 institution_name = "BCP Tarjeta"
-            elif "SERVICIO" in desc_upper or "PAGO" in desc_upper or "RECIBO" in desc_upper:
+            elif (
+                "SERVICIO" in desc_upper
+                or "PAGO" in desc_upper
+                or "RECIBO" in desc_upper
+            ):
                 institution_name = "BCP Pagos y Servicios"
                 mask = "*PAGOS"
             elif (

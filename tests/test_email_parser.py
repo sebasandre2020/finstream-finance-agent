@@ -419,5 +419,3 @@ Fecha de pago: 09 oct. 2026"""
 
     assert res.is_transaction is False
     assert res.amount is None
-
-
