@@ -9,6 +9,9 @@ import {
 import { useLiveTransactions } from './hooks/useLiveTransactions';
 import { Header } from './components/Header';
 import { MetricCards } from './components/MetricCards';
+import { FinancialInsightBanner } from './components/FinancialInsightBanner';
+import { SpendingTrendChart } from './components/SpendingTrendChart';
+import { CategoryBreakdown } from './components/CategoryBreakdown';
 import { AccountSelector } from './components/AccountSelector';
 import { FilterToolbar } from './components/FilterToolbar';
 import { TransactionTable } from './components/TransactionTable';
@@ -54,9 +57,10 @@ export default function App() {
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Modals & Inspection
+  // Modals & Detail Inspection
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
   const [userSession, setUserSession] = useState<UserSession | null>(null);
@@ -66,7 +70,7 @@ export default function App() {
     message: string;
   } | null>(null);
 
-  // 1. Handle URL Query Params and 7-day Session Persistence
+  // Handle URL Query Params and 7-day Session Persistence
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const googleSync = params.get('google_sync');
@@ -203,6 +207,7 @@ export default function App() {
       setSelectedAccount('all');
       setSelectedPeriod('all');
       setSelectedMonth('all');
+      setSelectedCategory('');
       setSearchQuery('');
       setNotification({
         type: 'success',
@@ -220,6 +225,7 @@ export default function App() {
     setSelectedAccount('all');
     setSelectedPeriod('all');
     setSelectedMonth('all');
+    setSelectedCategory('');
     setSearchQuery('');
   };
 
@@ -231,10 +237,15 @@ export default function App() {
         return false;
       }
 
+      // 2. Category Filter
+      if (selectedCategory && t.category !== selectedCategory) {
+        return false;
+      }
+
       const txDate = new Date(t.transaction_time);
       const now = new Date();
 
-      // 2. Time Period Filter
+      // 3. Time Period Filter
       if (selectedPeriod === 'today') {
         const isToday =
           txDate.getDate() === now.getDate() &&
@@ -257,7 +268,7 @@ export default function App() {
         if (!isThisMonth) return false;
       }
 
-      // 3. Month Filter
+      // 4. Month Filter
       if (selectedMonth !== 'all') {
         const targetMonth = parseInt(selectedMonth, 10);
         if (txDate.getMonth() !== targetMonth) {
@@ -265,7 +276,7 @@ export default function App() {
         }
       }
 
-      // 4. Live Search Filter
+      // 5. Live Search Filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchesMerchant = t.normalized_merchant?.toLowerCase().includes(q);
@@ -282,7 +293,7 @@ export default function App() {
 
       return true;
     });
-  }, [transactions, selectedAccount, selectedPeriod, selectedMonth, searchQuery]);
+  }, [transactions, selectedAccount, selectedPeriod, selectedMonth, selectedCategory, searchQuery]);
 
   const totalSpend = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
@@ -296,7 +307,7 @@ export default function App() {
   }, [filteredTransactions]);
 
   const currentCurrency = filteredTransactions[0]?.currency === 'USD' ? '$' : 'S/';
-  const isFilterActive = selectedAccount !== 'all' || selectedPeriod !== 'all' || selectedMonth !== 'all' || searchQuery !== '';
+  const isFilterActive = selectedAccount !== 'all' || selectedPeriod !== 'all' || selectedMonth !== 'all' || selectedCategory !== '' || searchQuery !== '';
 
   const selectedAccountName = useMemo(() => {
     if (selectedAccount === 'all') return 'Todas las cuentas';
@@ -318,8 +329,8 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Main Content Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {/* Main Content Dashboard */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 space-y-6">
         {/* Notification Banner */}
         {notification && (
           <div className={`p-4 rounded-2xl border flex items-center justify-between backdrop-blur animate-fade-in shadow-sm ${
@@ -395,7 +406,36 @@ export default function App() {
           selectedAccountName={selectedAccountName}
         />
 
-        {/* 3. Account Selector */}
+        {/* 3. At-a-glance Financial Synthesis Banner */}
+        <FinancialInsightBanner
+          transactions={filteredTransactions}
+          currencySymbol={currentCurrency}
+        />
+
+        {/* 4. Visual Financial Intelligence Grid (Chart + Category/Merchant Breakdown) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Spending Trend Area / Bar Chart (7 Cols) */}
+          <div className="lg:col-span-7">
+            <SpendingTrendChart
+              transactions={filteredTransactions}
+              currencySymbol={currentCurrency}
+              theme={theme}
+            />
+          </div>
+
+          {/* Category Breakdown & Top Merchants (5 Cols) */}
+          <div className="lg:col-span-5">
+            <CategoryBreakdown
+              transactions={filteredTransactions}
+              currencySymbol={currentCurrency}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+              onSelectMerchant={(merchant) => setSearchQuery(merchant)}
+            />
+          </div>
+        </div>
+
+        {/* 5. Account Cards Selector */}
         <AccountSelector
           accounts={accounts}
           selectedAccountId={selectedAccount}
@@ -404,7 +444,7 @@ export default function App() {
           currencySymbol={currentCurrency}
         />
 
-        {/* 4. Filter Toolbar */}
+        {/* 6. Filter Toolbar (Search, Periods, Month, Category Tag, Purge) */}
         <FilterToolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -412,12 +452,14 @@ export default function App() {
           onPeriodChange={setSelectedPeriod}
           selectedMonth={selectedMonth}
           onMonthChange={setSelectedMonth}
+          selectedCategory={selectedCategory}
+          onClearCategory={() => setSelectedCategory('')}
           onResetFilters={handleResetFilters}
           isFilterActive={isFilterActive}
           onPurgeMockData={handlePurgeMockData}
         />
 
-        {/* 5. Real-Time Transaction Ledger */}
+        {/* 7. Real-Time Transaction Ledger Table */}
         <TransactionTable
           transactions={filteredTransactions}
           totalTransactionsCount={transactions.length}
@@ -426,13 +468,13 @@ export default function App() {
         />
       </main>
 
-      {/* 6. Transaction Detail Slide-over / Modal */}
+      {/* 8. Slide-over Transaction Inspector Modal */}
       <TransactionDetailModal
         transaction={selectedTransaction}
         onClose={() => setSelectedTransaction(null)}
       />
 
-      {/* 7. Re-engineered Bank Connection Modal */}
+      {/* 9. Re-engineered Bank Connection Modal */}
       <EmailConnectModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
