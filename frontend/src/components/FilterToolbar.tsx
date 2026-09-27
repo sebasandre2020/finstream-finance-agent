@@ -4,7 +4,8 @@ import {
   X, 
   Calendar, 
   RotateCcw, 
-  Trash2 
+  Trash2,
+  Tag 
 } from 'lucide-react';
 
 export const MONTH_OPTIONS = [
@@ -39,6 +40,8 @@ interface FilterToolbarProps {
   onPeriodChange: (period: string) => void;
   selectedMonth: string;
   onMonthChange: (month: string) => void;
+  selectedCategory?: string;
+  onClearCategory?: () => void;
   onResetFilters: () => void;
   isFilterActive: boolean;
   onPurgeMockData: () => void;
@@ -51,6 +54,8 @@ export const FilterToolbar: React.FC<FilterToolbarProps> = ({
   onPeriodChange,
   selectedMonth,
   onMonthChange,
+  selectedCategory,
+  onClearCategory,
   onResetFilters,
   isFilterActive,
   onPurgeMockData,
@@ -79,6 +84,19 @@ export const FilterToolbar: React.FC<FilterToolbarProps> = ({
             </button>
           )}
         </div>
+
+        {/* Active Category Tag if filtered */}
+        {selectedCategory && (
+          <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-2.5 py-1 rounded-xl text-xs font-medium text-zinc-800 dark:text-zinc-200 self-start sm:self-center">
+            <Tag className="h-3 w-3 text-zinc-500" />
+            <span>Categoría: {selectedCategory}</span>
+            {onClearCategory && (
+              <button onClick={onClearCategory} className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white ml-1">
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Right Utility: Purge Simulated Data */}
         <div className="flex items-center space-x-2 self-end sm:self-center">
