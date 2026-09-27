@@ -41,3 +41,7 @@ export interface UserSession {
   session_token: string;
   session_expires: string;
 }
+
+export type ThemeMode = 'dark' | 'light';
+
+export type TimePeriodKey = 'all' | 'today' | '7d' | '15d' | '30d' | 'this_month';

@@ -1,50 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   AlertTriangle, 
-  Building2, 
   CheckCircle2, 
-  DollarSign, 
-  Layers, 
-  Mail, 
-  Radio, 
-  Sparkles, 
-  X,
-  Trash2,
-  RefreshCw,
-  LogOut,
-  CreditCard,
-  Check,
-  Calendar,
-  Clock,
-  RotateCcw
+  X, 
+  Check, 
+  ShieldAlert 
 } from 'lucide-react';
 import { useLiveTransactions } from './hooks/useLiveTransactions';
+import { Header } from './components/Header';
+import { MetricCards } from './components/MetricCards';
+import { AccountSelector } from './components/AccountSelector';
+import { FilterToolbar } from './components/FilterToolbar';
+import { TransactionTable } from './components/TransactionTable';
+import { TransactionDetailModal } from './components/TransactionDetailModal';
 import { EmailConnectModal } from './components/EmailConnectModal';
-import { UserSession } from './types';
-
-const MONTH_NAMES = [
-  { value: '0', label: 'Enero' },
-  { value: '1', label: 'Febrero' },
-  { value: '2', label: 'Marzo' },
-  { value: '3', label: 'Abril' },
-  { value: '4', label: 'Mayo' },
-  { value: '5', label: 'Junio' },
-  { value: '6', label: 'Julio' },
-  { value: '7', label: 'Agosto' },
-  { value: '8', label: 'Septiembre' },
-  { value: '9', label: 'Octubre' },
-  { value: '10', label: 'Noviembre' },
-  { value: '11', label: 'Diciembre' },
-];
-
-const PERIOD_OPTIONS = [
-  { key: 'all', label: 'Todo el tiempo' },
-  { key: 'today', label: 'Hoy' },
-  { key: '7d', label: 'Últimos 7 días' },
-  { key: '15d', label: 'Últimos 15 días' },
-  { key: '30d', label: 'Últimos 30 días' },
-  { key: 'this_month', label: 'Este mes' },
-];
+import { Transaction, UserSession, ThemeMode } from './types';
 
 export default function App() {
   const { 
@@ -57,9 +27,37 @@ export default function App() {
     refreshAccounts
   } = useLiveTransactions();
 
+  // Theming state: Base colors white for brights and black for darks
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const saved = localStorage.getItem('fin_theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.remove('dark');
+      root.classList.add('light');
+    }
+    localStorage.setItem('fin_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  // Filter States
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
   const [selectedPeriod, setSelectedPeriod] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Modals & Inspection
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState<boolean>(false);
   const [userSession, setUserSession] = useState<UserSession | null>(null);
   const [isSyncingNow, setIsSyncingNow] = useState<boolean>(false);
@@ -95,7 +93,7 @@ export default function App() {
       if (googleSync === 'success') {
         setNotification({
           type: 'success',
-          message: `¡Sesión iniciada con éxito para ${email}! Se encontraron ${found} correos bancarios y se sincronizaron ${synced} transacciones nuevas.`
+          message: `Sesión iniciada para ${email}. Se inspeccionaron ${found} correos bancarios y se sincronizaron ${synced} transacciones nuevas.`
         });
       }
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -172,7 +170,7 @@ export default function App() {
         setUserSession(null);
         setNotification({
           type: 'error',
-          message: 'Tu sesión ha expirado en el servidor. Por favor vuelve a conectar tu cuenta BCP / Gmail.'
+          message: 'Tu sesión ha expirado en el servidor. Por favor vuelve a conectar tu cuenta.'
         });
         return;
       }
@@ -181,7 +179,7 @@ export default function App() {
       refreshAccounts();
       setNotification({
         type: 'success',
-        message: `Sincronización en vivo completada: ${data.synced ?? 0} nuevas transacciones agregadas.`
+        message: `Sincronización en vivo completada: ${data.synced ?? 0} nuevas transacciones actualizadas.`
       });
     } catch (err: any) {
       setNotification({
@@ -194,7 +192,7 @@ export default function App() {
   };
 
   const handlePurgeMockData = async () => {
-    if (!confirm('¿Deseas eliminar todas las transacciones de prueba simuladas y dejar únicamente tus transacciones bancarias reales?')) {
+    if (!confirm('¿Deseas eliminar las transacciones de prueba simuladas y dejar únicamente tus transacciones bancarias reales?')) {
       return;
     }
     try {
@@ -205,9 +203,10 @@ export default function App() {
       setSelectedAccount('all');
       setSelectedPeriod('all');
       setSelectedMonth('all');
+      setSearchQuery('');
       setNotification({
         type: 'success',
-        message: `Se eliminaron ${data.transactions_removed} transacciones simuladas. Tu dashboard ahora solo muestra tus transacciones reales.`
+        message: `Se eliminaron ${data.transactions_removed} transacciones simuladas. Tu libro mayor ahora solo muestra registros reales.`
       });
     } catch (err: any) {
       setNotification({
@@ -221,202 +220,163 @@ export default function App() {
     setSelectedAccount('all');
     setSelectedPeriod('all');
     setSelectedMonth('all');
+    setSearchQuery('');
   };
 
-  // Multi-criteria Filtering: Account + Period + Month
-  const filteredTransactions = transactions.filter((t) => {
-    // 1. Account Filter
-    if (selectedAccount !== 'all' && t.account_id !== selectedAccount) {
-      return false;
-    }
-
-    const txDate = new Date(t.transaction_time);
-    const now = new Date();
-
-    // 2. Time Period Filter
-    if (selectedPeriod === 'today') {
-      const isToday =
-        txDate.getDate() === now.getDate() &&
-        txDate.getMonth() === now.getMonth() &&
-        txDate.getFullYear() === now.getFullYear();
-      if (!isToday) return false;
-    } else if (selectedPeriod === '7d') {
-      const diffMs = now.getTime() - txDate.getTime();
-      if (diffMs > 7 * 86400 * 1000 || diffMs < 0) return false;
-    } else if (selectedPeriod === '15d') {
-      const diffMs = now.getTime() - txDate.getTime();
-      if (diffMs > 15 * 86400 * 1000 || diffMs < 0) return false;
-    } else if (selectedPeriod === '30d') {
-      const diffMs = now.getTime() - txDate.getTime();
-      if (diffMs > 30 * 86400 * 1000 || diffMs < 0) return false;
-    } else if (selectedPeriod === 'this_month') {
-      const isThisMonth =
-        txDate.getMonth() === now.getMonth() &&
-        txDate.getFullYear() === now.getFullYear();
-      if (!isThisMonth) return false;
-    }
-
-    // 3. Month Filter
-    if (selectedMonth !== 'all') {
-      const targetMonth = parseInt(selectedMonth, 10);
-      if (txDate.getMonth() !== targetMonth) {
+  // Multi-criteria Filtering
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      // 1. Account Filter
+      if (selectedAccount !== 'all' && t.account_id !== selectedAccount) {
         return false;
       }
-    }
 
-    return true;
-  });
+      const txDate = new Date(t.transaction_time);
+      const now = new Date();
 
-  const totalSpend = filteredTransactions.reduce((acc, t) => {
-    const val = Number(t.amount) || 0;
-    return acc + (val > 0 ? val : 0);
-  }, 0);
-  const totalAnomalies = filteredTransactions.filter((t) => t.is_anomaly).length;
+      // 2. Time Period Filter
+      if (selectedPeriod === 'today') {
+        const isToday =
+          txDate.getDate() === now.getDate() &&
+          txDate.getMonth() === now.getMonth() &&
+          txDate.getFullYear() === now.getFullYear();
+        if (!isToday) return false;
+      } else if (selectedPeriod === '7d') {
+        const diffMs = now.getTime() - txDate.getTime();
+        if (diffMs > 7 * 86400 * 1000 || diffMs < 0) return false;
+      } else if (selectedPeriod === '15d') {
+        const diffMs = now.getTime() - txDate.getTime();
+        if (diffMs > 15 * 86400 * 1000 || diffMs < 0) return false;
+      } else if (selectedPeriod === '30d') {
+        const diffMs = now.getTime() - txDate.getTime();
+        if (diffMs > 30 * 86400 * 1000 || diffMs < 0) return false;
+      } else if (selectedPeriod === 'this_month') {
+        const isThisMonth =
+          txDate.getMonth() === now.getMonth() &&
+          txDate.getFullYear() === now.getFullYear();
+        if (!isThisMonth) return false;
+      }
+
+      // 3. Month Filter
+      if (selectedMonth !== 'all') {
+        const targetMonth = parseInt(selectedMonth, 10);
+        if (txDate.getMonth() !== targetMonth) {
+          return false;
+        }
+      }
+
+      // 4. Live Search Filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesMerchant = t.normalized_merchant?.toLowerCase().includes(q);
+        const matchesRaw = t.raw_description.toLowerCase().includes(q);
+        const matchesCat = t.category.toLowerCase().includes(q);
+        const matchesSub = t.sub_category?.toLowerCase().includes(q);
+        const matchesAmt = String(t.amount).includes(q);
+        const matchesInst = t.institution_name?.toLowerCase().includes(q);
+
+        if (!matchesMerchant && !matchesRaw && !matchesCat && !matchesSub && !matchesAmt && !matchesInst) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [transactions, selectedAccount, selectedPeriod, selectedMonth, searchQuery]);
+
+  const totalSpend = useMemo(() => {
+    return filteredTransactions.reduce((acc, t) => {
+      const val = Number(t.amount) || 0;
+      return acc + (val > 0 ? val : 0);
+    }, 0);
+  }, [filteredTransactions]);
+
+  const totalAnomalies = useMemo(() => {
+    return filteredTransactions.filter((t) => t.is_anomaly).length;
+  }, [filteredTransactions]);
 
   const currentCurrency = filteredTransactions[0]?.currency === 'USD' ? '$' : 'S/';
-  const isFilterActive = selectedAccount !== 'all' || selectedPeriod !== 'all' || selectedMonth !== 'all';
+  const isFilterActive = selectedAccount !== 'all' || selectedPeriod !== 'all' || selectedMonth !== 'all' || searchQuery !== '';
+
+  const selectedAccountName = useMemo(() => {
+    if (selectedAccount === 'all') return 'Todas las cuentas';
+    const acc = accounts.find((a) => a.id === selectedAccount);
+    return acc ? `${acc.institution_name} (${acc.account_number_mask})` : 'Cuenta seleccionada';
+  }, [selectedAccount, accounts]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* Top Header */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-teal-500/10 border border-teal-500/30 p-2 rounded-lg text-teal-400">
-              <Sparkles className="h-6 w-6" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                FinStream Intelligence
-                <span className="text-xs bg-slate-800 text-teal-400 font-mono px-2 py-0.5 rounded border border-slate-700">v1.0.0</span>
-              </h1>
-              <p className="text-xs text-slate-400">Agente Financiero Multicuenta en Tiempo Real (BCP & Yape)</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-50 transition-colors duration-200">
+      {/* 1. Executive Minimalist Header */}
+      <Header
+        userSession={userSession}
+        isConnected={isConnected}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        onOpenConnectModal={() => setIsEmailModalOpen(true)}
+        onSyncNow={handleSyncNow}
+        isSyncingNow={isSyncingNow}
+        onLogout={handleLogout}
+      />
 
-          <div className="flex items-center space-x-3">
-            {userSession ? (
-              <div className="flex items-center space-x-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full shadow-sm">
-                {userSession.picture ? (
-                  <img 
-                    src={userSession.picture} 
-                    alt={userSession.name} 
-                    className="h-7 w-7 rounded-full border border-teal-500/40 object-cover" 
-                  />
-                ) : (
-                  <div className="h-7 w-7 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center text-xs font-bold font-mono">
-                    {userSession.name?.charAt(0).toUpperCase() || 'U'}
-                  </div>
-                )}
-                <div className="text-left hidden sm:block">
-                  <div className="text-xs font-semibold text-white leading-tight">{userSession.name}</div>
-                  <div className="text-[10px] text-emerald-400 flex items-center gap-1 font-mono">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>Sync activo (60s)</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-1 pl-1 border-l border-slate-800">
-                  <button
-                    onClick={handleSyncNow}
-                    disabled={isSyncingNow}
-                    title="Sincronizar Gmail en vivo ahora"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-teal-300 hover:bg-slate-800 transition"
-                  >
-                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncingNow ? 'animate-spin text-teal-400' : ''}`} />
-                  </button>
-                  <button
-                    onClick={() => setIsEmailModalOpen(true)}
-                    title="Opciones de Conexión Bancaria"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    title="Cerrar sesión"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsEmailModalOpen(true)}
-                className="flex items-center space-x-2 text-xs font-semibold bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 border border-teal-500/30 px-3.5 py-1.5 rounded-full transition shadow-sm"
-              >
-                <Mail className="h-3.5 w-3.5 text-teal-400" />
-                <span>Conectar Banco (BCP / Yape)</span>
-              </button>
-            )}
-
-            <div className="flex items-center space-x-2 text-xs font-mono bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full">
-              <Radio className={`h-3 w-3 ${isConnected ? 'text-emerald-400 animate-pulse' : 'text-rose-500'}`} />
-              <span className={isConnected ? 'text-emerald-400' : 'text-rose-400'}>
-                {isConnected ? 'Kafka SSE: ACTIVO' : 'Reconectando...'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      {/* Main Content Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Notification Banner */}
         {notification && (
-          <div className={`p-4 rounded-xl border flex items-center justify-between backdrop-blur animate-fade-in ${
+          <div className={`p-4 rounded-2xl border flex items-center justify-between backdrop-blur animate-fade-in shadow-sm ${
             notification.type === 'success' 
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
+              ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800/30 text-emerald-900 dark:text-emerald-200' 
               : notification.type === 'error'
-              ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
-              : 'bg-blue-950/40 border-blue-500/40 text-blue-200'
+              ? 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800/30 text-rose-900 dark:text-rose-200'
+              : 'bg-zinc-100 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-200'
           }`}>
             <div className="flex items-center space-x-3">
               {notification.type === 'success' ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               ) : notification.type === 'error' ? (
-                <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0" />
+                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
               ) : (
-                <Check className="h-5 w-5 text-blue-400 shrink-0" />
+                <Check className="h-5 w-5 text-zinc-600 dark:text-zinc-400 shrink-0" />
               )}
-              <span className="text-sm font-medium">{notification.message}</span>
+              <span className="text-xs font-medium">{notification.message}</span>
             </div>
             <button
               onClick={() => setNotification(null)}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/60 transition"
+              className="p-1 rounded-lg text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* Anomaly Banners */}
+        {/* Anomaly Alerts List */}
         {anomalies.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {anomalies.map((alert) => (
               <div 
                 key={alert.transaction_id}
-                className="bg-rose-950/40 border border-rose-500/30 rounded-xl p-4 flex items-start justify-between backdrop-blur animate-fade-in"
+                className="bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/30 rounded-2xl p-4 flex items-start justify-between shadow-sm animate-fade-in"
               >
                 <div className="flex items-start space-x-3">
-                  <div className="p-2 bg-rose-500/20 text-rose-400 rounded-lg mt-0.5">
-                    <AlertTriangle className="h-5 w-5" />
+                  <div className="p-2 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-xl mt-0.5">
+                    <ShieldAlert className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold font-mono tracking-wider px-2 py-0.5 rounded bg-rose-500/20 text-rose-300">
-                        {alert.severity} ANOMALÍA DETECTADA
+                      <span className="text-[10px] font-bold font-mono tracking-wider px-2 py-0.5 rounded-full bg-rose-200/60 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200">
+                        {alert.severity} • TRANSACCIÓN ATÍPICA
                       </span>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-zinc-600 dark:text-zinc-400 font-mono">
                         {alert.merchant || 'Comercio Desconocido'} • {currentCurrency}{(Number(alert.amount) || 0).toFixed(2)}
                       </span>
                     </div>
-                    <p className="text-sm text-slate-200 mt-1 font-medium">{alert.reason}</p>
+                    <p className="text-xs text-zinc-800 dark:text-zinc-200 mt-1 font-medium leading-relaxed">
+                      {alert.reason}
+                    </p>
                   </div>
                 </div>
                 <button
                   onClick={() => dismissAnomaly(alert.transaction_id)}
-                  className="text-slate-400 hover:text-white p-1 hover:bg-slate-800/50 rounded transition"
+                  className="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 p-1.5 rounded-lg transition"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -425,304 +385,54 @@ export default function App() {
           </div>
         )}
 
-        {/* Dynamic Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 shadow-sm">
-            <div className="flex justify-between items-center text-slate-400 mb-2">
-              <span className="text-xs font-medium uppercase tracking-wider">Gasto Total Filtrado</span>
-              <DollarSign className="h-4 w-4 text-teal-400" />
-            </div>
-            <div className="text-2xl font-bold text-white font-mono">
-              {currentCurrency}{totalSpend.toFixed(2)}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              {selectedAccount === 'all' ? 'En todas las cuentas y tarjetas' : 'En la cuenta seleccionada'}
-            </p>
-          </div>
+        {/* 2. Executive KPI Cards */}
+        <MetricCards
+          totalSpend={totalSpend}
+          currency={currentCurrency}
+          transactionCount={filteredTransactions.length}
+          accounts={accounts}
+          anomalyCount={totalAnomalies}
+          selectedAccountName={selectedAccountName}
+        />
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 shadow-sm">
-            <div className="flex justify-between items-center text-slate-400 mb-2">
-              <span className="text-xs font-medium uppercase tracking-wider">Cuentas y Tarjetas</span>
-              <Building2 className="h-4 w-4 text-teal-400" />
-            </div>
-            <div className="text-2xl font-bold text-white font-mono">{accounts.length} Cuentas</div>
-            <p className="text-xs text-slate-500 mt-1">BCP Tarjetas, Yape y Cuentas Bancarias</p>
-          </div>
+        {/* 3. Account Selector */}
+        <AccountSelector
+          accounts={accounts}
+          selectedAccountId={selectedAccount}
+          onSelectAccount={setSelectedAccount}
+          transactions={transactions}
+          currencySymbol={currentCurrency}
+        />
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 shadow-sm">
-            <div className="flex justify-between items-center text-slate-400 mb-2">
-              <span className="text-xs font-medium uppercase tracking-wider">Precisión de Categorización</span>
-              <CheckCircle2 className="h-4 w-4 text-teal-400" />
-            </div>
-            <div className="text-2xl font-bold text-white font-mono">98.4%</div>
-            <p className="text-xs text-slate-500 mt-1">pgvector HNSW + Reflexión LangGraph</p>
-          </div>
+        {/* 4. Filter Toolbar */}
+        <FilterToolbar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          selectedPeriod={selectedPeriod}
+          onPeriodChange={setSelectedPeriod}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
+          onResetFilters={handleResetFilters}
+          isFilterActive={isFilterActive}
+          onPurgeMockData={handlePurgeMockData}
+        />
 
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-5 shadow-sm">
-            <div className="flex justify-between items-center text-slate-400 mb-2">
-              <span className="text-xs font-medium uppercase tracking-wider">Gastos Atípicos (Outliers)</span>
-              <AlertTriangle className="h-4 w-4 text-amber-400" />
-            </div>
-            <div className="text-2xl font-bold text-white font-mono">{totalAnomalies} Detectados</div>
-            <p className="text-xs text-slate-500 mt-1">Desviación Absoluta Mediana (MAD &gt; 3.5)</p>
-          </div>
-        </div>
-
-        {/* Filter Section Container */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-4 space-y-3.5">
-          {/* Row 1: Dynamic Account Filter Tabs & Cards */}
-          <div className="flex items-center justify-between overflow-x-auto pb-1 gap-3">
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setSelectedAccount('all')}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition whitespace-nowrap flex items-center gap-2 ${
-                  selectedAccount === 'all'
-                    ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
-                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span>Todas las Cuentas</span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-                  selectedAccount === 'all' ? 'bg-slate-950/30 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
-                }`}>
-                  {transactions.length}
-                </span>
-              </button>
-
-              {accounts.map((acc) => {
-                const isSelected = selectedAccount === acc.id;
-                const count = acc.transaction_count ?? transactions.filter(t => t.account_id === acc.id).length;
-                return (
-                  <button
-                    key={acc.id}
-                    onClick={() => setSelectedAccount(acc.id)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition whitespace-nowrap flex items-center gap-2 ${
-                      isSelected
-                        ? 'bg-teal-500 text-slate-950 font-bold shadow-md shadow-teal-500/20'
-                        : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    <CreditCard className={`h-3.5 w-3.5 ${isSelected ? 'text-slate-950' : 'text-teal-400'}`} />
-                    <span>{acc.institution_name} ({acc.account_number_mask})</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono ${
-                      isSelected ? 'bg-slate-950/30 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
-                    }`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Purge Simulated Data Button */}
-            <button
-              onClick={handlePurgeMockData}
-              title="Eliminar las transacciones de prueba simuladas y mostrar únicamente las transacciones reales de tus correos bancarios"
-              className="text-xs text-slate-400 hover:text-rose-400 border border-slate-800 hover:border-rose-500/40 bg-slate-900 px-3 py-1.5 rounded-xl transition whitespace-nowrap shrink-0 flex items-center gap-1.5"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>Limpiar Datos Simulados</span>
-            </button>
-          </div>
-
-          {/* Row 2: Time Period & Month Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/60">
-            {/* Period selector pills */}
-            <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5">
-              <span className="text-[11px] font-mono text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-                <Clock className="h-3 w-3 text-slate-400" />
-                Periodo:
-              </span>
-              {PERIOD_OPTIONS.map((opt) => {
-                const isActive = selectedPeriod === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    onClick={() => setSelectedPeriod(opt.key)}
-                    className={`px-3 py-1 rounded-lg text-xs font-medium transition whitespace-nowrap ${
-                      isActive
-                        ? 'bg-slate-100 text-slate-950 font-bold shadow-sm'
-                        : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Month Dropdown & Reset Action */}
-            <div className="flex items-center space-x-2">
-              <div className="flex items-center space-x-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
-                <Calendar className="h-3.5 w-3.5 text-teal-400" />
-                <span className="text-slate-400 text-[11px] font-mono">Mes:</span>
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-transparent text-slate-200 text-xs font-medium focus:outline-none cursor-pointer pr-1"
-                >
-                  <option value="all" className="bg-slate-900 text-slate-200">Todos los meses</option>
-                  {MONTH_NAMES.map((m) => (
-                    <option key={m.value} value={m.value} className="bg-slate-900 text-slate-200">
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {isFilterActive && (
-                <button
-                  onClick={handleResetFilters}
-                  title="Restablecer todos los filtros"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex items-center gap-1 text-xs font-medium"
-                >
-                  <RotateCcw className="h-3 w-3 text-teal-400" />
-                  <span className="hidden sm:inline">Restablecer</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Real-Time Ledger Table */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <Layers className="h-4 w-4 text-teal-400" />
-              Libro Mayor de Transacciones Reales en Tiempo Real
-              <span className="text-xs text-slate-400 font-normal">
-                ({filteredTransactions.length} de {transactions.length})
-              </span>
-            </h2>
-            <span className="text-xs text-slate-500 font-mono flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              Actualización instantánea vía SSE & Gmail API
-            </span>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 text-slate-400 font-mono border-b border-slate-800">
-                <tr>
-                  <th className="py-3 px-4">FECHA Y HORA</th>
-                  <th className="py-3 px-4">CUENTA / TARJETA</th>
-                  <th className="py-3 px-4">COMERCIO / BENEFICIARIO</th>
-                  <th className="py-3 px-4">CATEGORÍA</th>
-                  <th className="py-3 px-4">CONFIANZA</th>
-                  <th className="py-3 px-4">ESTADO</th>
-                  <th className="py-3 px-4 text-right">MONTO</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500 space-y-2">
-                      <p className="text-sm font-medium">No se encontraron transacciones con los filtros seleccionados.</p>
-                      <p className="text-xs text-slate-600">
-                        Prueba seleccionando otro periodo, mes o cuenta.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredTransactions.map((tx) => {
-                    const txCurr = tx.currency === 'USD' ? '$' : 'S/';
-                    const txDate = new Date(tx.transaction_time);
-                    return (
-                      <tr 
-                        key={tx.id} 
-                        className={`hover:bg-slate-800/30 transition ${tx.is_anomaly ? 'bg-rose-950/10' : ''}`}
-                      >
-                        {/* FECHA Y HORA Formatted in 2 lines with icons */}
-                        <td className="py-3 px-4 font-mono whitespace-nowrap">
-                          <div className="text-slate-200 font-semibold flex items-center gap-1.5">
-                            <Calendar className="h-3 w-3 text-teal-400/80" />
-                            <span>
-                              {txDate.toLocaleDateString('es-PE', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 pl-4.5">
-                            <Clock className="h-2.5 w-2.5 text-slate-500" />
-                            <span>
-                              {txDate.toLocaleTimeString('es-PE', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                second: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* CUENTA / TARJETA */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="bg-slate-800 text-teal-300 px-2.5 py-1 rounded-lg border border-slate-700 text-xs font-medium inline-flex items-center gap-1.5">
-                            <CreditCard className="h-3 w-3 text-teal-400" />
-                            <span>{tx.institution_name || 'BCP / Yape'}</span>
-                          </span>
-                        </td>
-
-                        {/* COMERCIO / BENEFICIARIO */}
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-100">
-                            {tx.normalized_merchant || 'Comercio no resuelto'}
-                          </div>
-                          <div className="text-[11px] text-slate-500 truncate max-w-xs font-mono">
-                            {tx.raw_description}
-                          </div>
-                        </td>
-
-                        {/* CATEGORÍA */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-teal-950/80 text-teal-300 border border-teal-800/50">
-                            {tx.category}
-                            {tx.sub_category && (
-                              <span className="text-teal-400/60">› {tx.sub_category}</span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* CONFIANZA */}
-                        <td className="py-3 px-4 font-mono text-slate-300 whitespace-nowrap">
-                          {(tx.confidence_score * 100).toFixed(0)}%
-                        </td>
-
-                        {/* ESTADO */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {tx.is_anomaly ? (
-                            <span 
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold"
-                              title={tx.anomaly_reason || 'Consumo atípico detectado'}
-                            >
-                              <AlertTriangle className="h-3 w-3" />
-                              ANOMALÍA
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-xs">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                              Verificado
-                            </span>
-                          )}
-                        </td>
-
-                        {/* MONTO */}
-                        <td className={`py-3 px-4 text-right font-mono font-bold whitespace-nowrap ${
-                          Number(tx.amount) > 0 ? 'text-slate-100' : 'text-emerald-400'
-                        }`}>
-                          {txCurr}{(Number(tx.amount) || 0).toFixed(2)}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* 5. Real-Time Transaction Ledger */}
+        <TransactionTable
+          transactions={filteredTransactions}
+          totalTransactionsCount={transactions.length}
+          onSelectTransaction={setSelectedTransaction}
+          currencySymbol={currentCurrency}
+        />
       </main>
 
+      {/* 6. Transaction Detail Slide-over / Modal */}
+      <TransactionDetailModal
+        transaction={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
+
+      {/* 7. Re-engineered Bank Connection Modal */}
       <EmailConnectModal
         isOpen={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
