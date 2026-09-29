@@ -5,7 +5,7 @@ Set AUTH_TEST_DATABASE_URL to an isolated database; never uses the application D
 import os
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -49,7 +49,7 @@ async def state(monkeypatch):
             expire_on_commit=False,
             join_transaction_mode="create_savepoint",
         )
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         users, accounts, rows = [], [], []
         for index in range(2):
             user = GoogleUserSession(
@@ -241,9 +241,7 @@ async def test_stream_filters_other_users_transactions(state, monkeypatch):
 async def test_expired_session_and_unverified_google_identity_are_rejected(
     state, monkeypatch
 ):
-    state.users[0].session_expires_at = datetime.now(timezone.utc) - timedelta(
-        seconds=1
-    )
+    state.users[0].session_expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await state.db.commit()
     state.client.cookies.set(SESSION_COOKIE, "token-0")
     assert (await state.client.get("/api/v1/auth/me")).status_code == 401
@@ -330,7 +328,7 @@ async def test_gmail_import_namespaces_identical_bank_accounts_by_user(
         raw_description="BCP CARD Shop",
         metadata={"source": "BCP_CARD"},
         ext_transaction_id="same-transaction",
-        transaction_time=datetime.now(timezone.utc),
+        transaction_time=datetime.now(UTC),
         parser_used="test",
         operation_type="DEBIT",
     )
@@ -362,11 +360,12 @@ async def test_gmail_import_namespaces_identical_bank_accounts_by_user(
 
 @pytest.mark.asyncio
 async def test_worker_persists_vector_cache_miss_hit_and_duplicate(state, monkeypatch):
-    from sqlalchemy import text, select, func
+    from sqlalchemy import func, select, text
+
+    from src.ai.adapters import MockLLMAdapter
+    from src.ai.graph import transaction_agent_graph
     from src.db.models import MerchantEntity
     from src.workers.consumer import KafkaAgentWorker
-    from src.ai.graph import transaction_agent_graph
-    from src.ai.adapters import MockLLMAdapter
 
     await state.db.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     await state.db.run_sync(
@@ -383,7 +382,7 @@ async def test_worker_persists_vector_cache_miss_hit_and_duplicate(state, monkey
             "ext_transaction_id": "regression-vector-1",
             "amount": "42.35",
             "raw_description": "Regression Merchant " + str(uuid.uuid4()),
-            "transaction_time": datetime.now(timezone.utc).isoformat(),
+            "transaction_time": datetime.now(UTC).isoformat(),
         }
     }
     await worker.process_record(envelope, state.db)
@@ -405,7 +404,7 @@ async def test_worker_persists_vector_cache_miss_hit_and_duplicate(state, monkey
 @pytest.mark.asyncio
 async def test_sync_status_is_scoped_to_authenticated_profile(state, monkeypatch):
     import json
-    from src.services.gmail_realtime_poller import gmail_realtime_poller
+
     from src.services.idempotency import idempotency_service
 
     values = {
@@ -443,7 +442,7 @@ async def test_failed_gmail_sync_records_error_and_releases_lock(state, monkeypa
 
     monkeypatch.setattr(module, "AsyncSessionLocal", session)
     user = state.users[0]
-    user.token_expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    user.token_expires_at = datetime.now(UTC) + timedelta(hours=1)
     await state.db.commit()
     monkeypatch.setattr(
         module.GoogleAuthService,

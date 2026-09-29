@@ -1,10 +1,10 @@
 """Import Gmail activity only for the authenticated profile that owns it."""
 
 import asyncio
-import logging
 import json
+import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -66,15 +66,14 @@ class GmailRealtimePoller:
                     await db.execute(
                         select(GoogleUserSession).where(
                             GoogleUserSession.id == user_id,
-                            GoogleUserSession.session_expires_at
-                            > datetime.now(timezone.utc),
+                            GoogleUserSession.session_expires_at > datetime.now(UTC),
                         )
                     )
                 ).scalar_one_or_none()
                 if not user:
                     raise ValueError("Session expired")
                 if not user.token_expires_at or user.token_expires_at <= datetime.now(
-                    timezone.utc
+                    UTC
                 ) + timedelta(minutes=5):
                     if not user.refresh_token:
                         raise ValueError("Reconnect Google")
@@ -82,7 +81,7 @@ class GmailRealtimePoller:
                         user.refresh_token
                     )
                     user.access_token = tokens["access_token"]
-                    user.token_expires_at = datetime.now(timezone.utc) + timedelta(
+                    user.token_expires_at = datetime.now(UTC) + timedelta(
                         seconds=int(tokens.get("expires_in", 3600))
                     )
                     await db.commit()
@@ -92,7 +91,7 @@ class GmailRealtimePoller:
                     ),
                     timeout=120,
                 )
-                user.last_synced_at = datetime.now(timezone.utc)
+                user.last_synced_at = datetime.now(UTC)
                 await db.commit()
                 await redis.set(
                     f"gmail:sync-result:{user_id}",
@@ -130,7 +129,7 @@ class GmailRealtimePoller:
                             await db.execute(
                                 select(GoogleUserSession.id).where(
                                     GoogleUserSession.session_expires_at
-                                    > datetime.now(timezone.utc),
+                                    > datetime.now(UTC),
                                     GoogleUserSession.google_subject.is_not(None),
                                 )
                             )

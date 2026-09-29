@@ -4,20 +4,20 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Dict, Any
+from typing import Any
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import settings
-from src.db.session import AsyncSessionLocal
-from src.db.models import Transaction, Account
 from src.ai.graph import transaction_agent_graph
-from src.services.sse_broadcaster import sse_broadcaster
+from src.core.config import settings
+from src.db.models import Account, Transaction
+from src.db.session import AsyncSessionLocal
 from src.services.idempotency import idempotency_service
+from src.services.sse_broadcaster import sse_broadcaster
 
 logging.basicConfig(
     level=settings.LOG_LEVEL.upper(),
@@ -70,7 +70,7 @@ class KafkaAgentWorker:
             await self.dlq_producer.stop()
         logger.info("Consumer worker stopped.")
 
-    async def process_record(self, raw_envelope: Dict[str, Any], session: AsyncSession):
+    async def process_record(self, raw_envelope: dict[str, Any], session: AsyncSession):
         payload = raw_envelope.get("payload", {})
         account_id_str = payload["account_id"]
         ext_tx_id = payload["ext_transaction_id"]
@@ -117,7 +117,7 @@ class KafkaAgentWorker:
             is_anomaly=agent_state.get("is_anomaly", False),
             anomaly_reason=agent_state.get("anomaly_reason"),
             transaction_time=tx_time,
-            processed_at=datetime.now(timezone.utc),
+            processed_at=datetime.now(UTC),
         )
         session.add(transaction)
         await session.commit()
@@ -190,7 +190,7 @@ class KafkaAgentWorker:
                             )
                             dlq_payload = {
                                 "original": msg.value,
-                                "failed_at": datetime.now(timezone.utc).isoformat(),
+                                "failed_at": datetime.now(UTC).isoformat(),
                                 "topic": msg.topic,
                                 "partition": msg.partition,
                                 "offset": msg.offset,

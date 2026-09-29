@@ -6,8 +6,10 @@ import argparse
 import asyncio
 import json
 import uuid
+
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer, TopicPartition
 from sqlalchemy import select
+
 from src.core.config import settings
 from src.db.models import Account, GoogleUserSession, Transaction
 from src.db.session import AsyncSessionLocal

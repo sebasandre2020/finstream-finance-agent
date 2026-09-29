@@ -2,17 +2,18 @@
 
 import logging
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.core.config import settings
-from src.services.kafka_producer import kafka_producer_service
-from src.api.v1.webhooks import router as webhooks_router
-from src.api.v1.transactions import router as transactions_router
-from src.api.v1.stream import router as stream_router
 from src.api.v1.auth import router as auth_router
+from src.api.v1.stream import router as stream_router
+from src.api.v1.transactions import router as transactions_router
+from src.api.v1.webhooks import router as webhooks_router
+from src.core.config import settings
 from src.services.gmail_realtime_poller import gmail_realtime_poller
+from src.services.kafka_producer import kafka_producer_service
 
 logging.basicConfig(
     level=settings.LOG_LEVEL.upper(),

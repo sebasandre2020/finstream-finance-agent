@@ -3,7 +3,7 @@
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
@@ -28,15 +28,14 @@ async def event_generator(request, user):
                     select(GoogleUserSession.id).where(
                         GoogleUserSession.id == user.id,
                         GoogleUserSession.session_token == user.session_token,
-                        GoogleUserSession.session_expires_at
-                        > datetime.now(timezone.utc),
+                        GoogleUserSession.session_expires_at > datetime.now(UTC),
                     )
                 )
                 if not active:
                     break
             try:
                 message = await asyncio.wait_for(queue.get(), timeout=15)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield ": ping\n\n"
                 continue
             if message.get("event") not in (

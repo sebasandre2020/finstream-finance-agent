@@ -2,9 +2,10 @@
 
 import logging
 import uuid
-from typing import Optional, Tuple, List
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.core.config import settings
 
 logger = logging.getLogger("PgVectorMerchantResolver")
@@ -17,8 +18,8 @@ class PgVectorMerchantResolver:
         self.session = session
 
     async def find_closest_merchant(
-        self, query_embedding: List[float], threshold: Optional[float] = None
-    ) -> Optional[Tuple[str, str, Optional[str], float]]:
+        self, query_embedding: list[float], threshold: float | None = None
+    ) -> tuple[str, str, str | None, float] | None:
         """
         Executes an approximate nearest-neighbor query using pgvector HNSW cosine distance (<=>).
         Returns: (normalized_name, default_category, default_subcategory, similarity)
@@ -65,8 +66,8 @@ class PgVectorMerchantResolver:
         self,
         normalized_name: str,
         category: str,
-        subcategory: Optional[str],
-        embedding: List[float],
+        subcategory: str | None,
+        embedding: list[float],
     ) -> None:
         """Saves a newly categorized merchant into the pgvector cache."""
         vector_str = "[" + ",".join(str(f) for f in embedding) + "]"

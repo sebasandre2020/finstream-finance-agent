@@ -1,7 +1,7 @@
 """Cookie sessions shared by API endpoints. Credentials never enter frontend storage."""
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request
@@ -29,7 +29,7 @@ async def require_user(
         await db.execute(
             select(GoogleUserSession).where(
                 GoogleUserSession.session_token == token_digest(token),
-                GoogleUserSession.session_expires_at > datetime.now(timezone.utc),
+                GoogleUserSession.session_expires_at > datetime.now(UTC),
             )
         )
     ).scalar_one_or_none()

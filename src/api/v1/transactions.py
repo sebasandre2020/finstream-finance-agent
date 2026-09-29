@@ -4,7 +4,6 @@ import base64
 import json
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import and_, desc, or_, select
@@ -29,11 +28,11 @@ def decode_cursor(cursor_str: str) -> tuple[datetime, uuid.UUID]:
         raw_bytes = base64.urlsafe_b64decode(cursor_str.encode("utf-8"))
         data = json.loads(raw_bytes.decode("utf-8"))
         return datetime.fromisoformat(data["t"]), uuid.UUID(data["id"])
-    except Exception:
+    except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Malformed pagination cursor.",
-        )
+        ) from err
 
 
 @router.get(
@@ -43,10 +42,10 @@ def decode_cursor(cursor_str: str) -> tuple[datetime, uuid.UUID]:
     description="Returns filtered multi-account transaction history ordered chronologically.",
 )
 async def list_transactions(
-    account_id: Optional[uuid.UUID] = Query(None, description="Filter by account UUID"),
-    category: Optional[str] = Query(None, description="Filter by category"),
-    is_anomaly: Optional[bool] = Query(None, description="Filter by anomaly status"),
-    cursor: Optional[str] = Query(None, description="Pagination cursor"),
+    account_id: uuid.UUID | None = Query(None, description="Filter by account UUID"),
+    category: str | None = Query(None, description="Filter by category"),
+    is_anomaly: bool | None = Query(None, description="Filter by anomaly status"),
+    cursor: str | None = Query(None, description="Pagination cursor"),
     limit: int = Query(50, ge=1, le=100, description="Page limit"),
     db: AsyncSession = Depends(get_db),
     user: GoogleUserSession = Depends(require_user),

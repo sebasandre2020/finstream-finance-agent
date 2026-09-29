@@ -3,7 +3,7 @@
 import logging
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -131,7 +131,7 @@ async def google_callback(
         if not user:
             user = GoogleUserSession(id=uuid.uuid4(), email=identity["email"])
             db.add(user)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         session_token = secrets.token_urlsafe(32)
         user.google_subject = identity["sub"]
         user.name = identity.get("name", "Your account")
@@ -171,7 +171,7 @@ async def me(user: GoogleUserSession = Depends(require_user)):
 async def logout(
     user: GoogleUserSession = Depends(require_user), db: AsyncSession = Depends(get_db)
 ):
-    user.session_expires_at = datetime.now(timezone.utc)
+    user.session_expires_at = datetime.now(UTC)
     await db.commit()
     response = JSONResponse({"status": "signed_out"})
     response.delete_cookie(SESSION_COOKIE, path="/")
@@ -184,10 +184,10 @@ async def sync(user: GoogleUserSession = Depends(require_user)):
 
     try:
         return await gmail_realtime_poller.request_sync(user.id)
-    except Exception:
+    except Exception as err:
         raise HTTPException(
             502, "Gmail sync failed. Try again or reconnect your Google account."
-        )
+        ) from err
 
 
 @router.get("/google/sync-status")
