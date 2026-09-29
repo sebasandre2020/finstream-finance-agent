@@ -156,5 +156,14 @@ services:
       NEXTAUTH_URL: http://localhost:3001
       TELEMETRY_ENABLED: "false"
 
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: finance_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://frontend:3000
+    depends_on:
+      - frontend
+
 volumes:
   postgres_data:
+
