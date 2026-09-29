@@ -107,3 +107,50 @@ curl http://localhost:8000/health
 * **Web UI:** `http://localhost:3000`
 * **FastAPI Docs (Swagger):** `http://localhost:8000/docs`
 * **Langfuse Tracing:** `http://localhost:3001`
+
+## Everyday dashboard
+
+The FinStream interface offers a responsive overview, category spending breakdown,
+searchable activity, account/currency/period filters, transaction details, CSV export,
+amount privacy, a monthly spending target, and an unusual-purchase review queue.
+An explicit **Explore a demo** button loads separate sample activity without writing
+to the backend. Mobile navigation sits at the bottom of the screen.
+
+### Run and verify the frontend
+
+Use Node.js 24.15+ (also used by the frontend container and CI):
+
+```sh
+cd frontend
+npm ci
+npm run dev
+npm run lint
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+The dev server proxies `/api` to `localhost:8000`. Browser tests start an isolated
+Vite server on port 3100 and use controlled API fixtures. The suite covers desktop
+and mobile flows, accessibility, exports, storage persistence, API failures,
+currency separation, and pagination. Backend tests can run in the existing API
+container with `docker compose exec -T api python -m pytest tests -q`.
+
+### Data behavior
+
+- Summaries describe **loaded activity**, not bank balances. Use **Load older
+  activity** to extend history; filters apply to loaded records.
+- Currencies are kept separate. Positive amounts are expenses/payments; negative
+  amounts are deposits/credits/refunds, following the existing API contract.
+- Monthly targets cover all loaded transactions for the selected currency in the
+  current month, regardless of activity filters. Refunds do not reduce gross spending.
+- Targets and reviewed flags persist in this browser's local storage, with separate
+  demo targets and user-specific storage. They are not synchronized between devices. Transaction data is not
+  written to local storage.
+- Live events are merged with history and deduplicated. A 30-second foreground
+  refresh provides a fallback because the existing API and worker broadcaster is
+  in-memory and does not transmit between processes. Cross-process real-time
+  delivery remains a backend limitation.
+- Google sign-in and read-only Gmail banking imports are restored, with per-user
+  transaction access. See [Google sign-in setup and migration](docs/google-sign-in.md).

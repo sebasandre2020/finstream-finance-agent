@@ -1,10 +1,10 @@
 """Sub-Millisecond Semantic Merchant Resolution using pgvector HNSW Index."""
 
 import logging
-
+import uuid
+from typing import Optional, Tuple, List
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.core.config import settings
 
 logger = logging.getLogger("PgVectorMerchantResolver")
@@ -17,8 +17,8 @@ class PgVectorMerchantResolver:
         self.session = session
 
     async def find_closest_merchant(
-        self, query_embedding: list[float], threshold: float | None = None
-    ) -> tuple[str, str, str | None, float] | None:
+        self, query_embedding: List[float], threshold: Optional[float] = None
+    ) -> Optional[Tuple[str, str, Optional[str], float]]:
         """
         Executes an approximate nearest-neighbor query using pgvector HNSW cosine distance (<=>).
         Returns: (normalized_name, default_category, default_subcategory, similarity)
@@ -65,13 +65,14 @@ class PgVectorMerchantResolver:
         self,
         normalized_name: str,
         category: str,
-        subcategory: str | None,
-        embedding: list[float],
+        subcategory: Optional[str],
+        embedding: List[float],
     ) -> None:
         """Saves a newly categorized merchant into the pgvector cache."""
         vector_str = "[" + ",".join(str(f) for f in embedding) + "]"
         sql = text("""
             INSERT INTO merchant_entities (
+                id,
                 normalized_name,
                 default_category,
                 default_subcategory,
@@ -81,6 +82,7 @@ class PgVectorMerchantResolver:
                 last_seen_at
             )
             VALUES (
+                :id,
                 :name,
                 :cat,
                 :subcat,
@@ -96,10 +98,11 @@ class PgVectorMerchantResolver:
         await self.session.execute(
             sql,
             {
+                "id": uuid.uuid4(),
                 "name": normalized_name,
                 "cat": category,
                 "subcat": subcategory,
                 "embedding": vector_str,
             },
         )
-        await self.session.commit()
+        await self.session.flush()

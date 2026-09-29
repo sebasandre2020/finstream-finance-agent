@@ -1,134 +1,98 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
-import { Transaction, AnomalyAlert, Account } from '../types';
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Transaction } from "../types";
+import { mergeTransactions, normalizeTransaction } from "../lib/finance";
 
-export function useLiveTransactions() {
+export function useLiveTransactions(enabled = true) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [anomalies, setAnomalies] = useState<AnomalyAlert[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [isConnected, setIsConnected] = useState<boolean>(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const controller = useRef<AbortController | null>(null);
+  const busy = useRef(false);
+  const cursorRef = useRef<string | null>(null);
+  const initialized = useRef(false);
 
-  const fetchTransactions = useCallback(() => {
-    fetch('/api/v1/transactions?limit=50')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.data) {
-          const parsedTransactions: Transaction[] = data.data.map((t: any) => ({
-            ...t,
-            amount: Number(t.amount) || 0,
-            confidence_score: Number(t.confidence_score) || 0,
-          }));
-          setTransactions(parsedTransactions);
-          const initialAnomalies: AnomalyAlert[] = parsedTransactions
-            .filter((t: Transaction) => t.is_anomaly)
-            .map((t: Transaction) => ({
-              transaction_id: t.id,
-              merchant: t.normalized_merchant,
-              amount: Number(t.amount) || 0,
-              category: t.category,
-              reason: t.anomaly_reason || 'Outlier spending detected',
-              severity: 'HIGH' as const,
-            }));
-          setAnomalies(initialAnomalies);
+  const fetchPage = useCallback(async (next?: string) => {
+    if (busy.current) return;
+    busy.current = true;
+    const request = new AbortController();
+    controller.current = request;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/v1/transactions?limit=100${next ? `&cursor=${encodeURIComponent(next)}` : ""}`,
+        { signal: request.signal },
+      );
+      if (response.status === 401) {
+        setTransactions([]);
+        window.dispatchEvent(new Event("finstream:unauthorized"));
+        return;
+      }
+      if (!response.ok) throw new Error("Unable to load activity");
+      const data = await response.json();
+      if (!Array.isArray(data.data)) throw new Error("Unexpected response");
+      const records = data.data.map(normalizeTransaction);
+      if (!request.signal.aborted) {
+        setTransactions((previous) => mergeTransactions(records, previous));
+        if (next || !initialized.current) {
+          cursorRef.current = data.has_more ? data.next_cursor : null;
+          setCursor(cursorRef.current);
+          initialized.current = true;
         }
-      })
-      .catch((err) => console.error('Failed to load transactions:', err));
-  }, []);
-
-  const fetchAccounts = useCallback(() => {
-    fetch('/api/v1/accounts')
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setAccounts(data);
-        }
-      })
-      .catch((err) => console.error('Failed to load accounts:', err));
+      }
+    } catch {
+      if (!request.signal.aborted)
+        setError(
+          "We couldn’t load your activity. Check your connection and try again.",
+        );
+    } finally {
+      if (controller.current === request) {
+        busy.current = false;
+        setLoading(false);
+      }
+    }
   }, []);
 
   useEffect(() => {
-    fetchTransactions();
-    fetchAccounts();
-
-    // Connect to SSE Stream
-    const connectSSE = () => {
-      const es = new EventSource('/api/v1/stream/events');
-      eventSourceRef.current = es;
-
-      es.onopen = () => {
-        setIsConnected(true);
-      };
-
-      es.addEventListener('transaction_processed', (event) => {
-        try {
-          const rawTx = JSON.parse(event.data);
-          const newTx: Transaction = {
-            ...rawTx,
-            amount: Number(rawTx.amount) || 0,
-            confidence_score: Number(rawTx.confidence_score) || 0,
-          };
-          setTransactions((prev) => {
-            if (prev.some((t) => t.id === newTx.id)) return prev;
-            return [newTx, ...prev.slice(0, 49)];
-          });
-          // Also refresh accounts stats
-          fetchAccounts();
-        } catch (e) {
-          console.error('Error parsing transaction_processed SSE event:', e);
-        }
-      });
-
-      es.addEventListener('anomaly_detected', (event) => {
-        try {
-          const rawAlert = JSON.parse(event.data);
-          const alert: AnomalyAlert = {
-            ...rawAlert,
-            amount: Number(rawAlert.amount) || 0,
-          };
-          setAnomalies((prev) => [alert, ...prev.slice(0, 9)]);
-        } catch (e) {
-          console.error('Error parsing anomaly_detected SSE event:', e);
-        }
-      });
-
-      es.addEventListener('gmail_sync_complete', (event) => {
-        try {
-          console.info('Gmail Realtime Poller Synced New Emails:', event.data);
-          fetchTransactions();
-          fetchAccounts();
-        } catch (e) {
-          console.error('Error handling gmail_sync_complete event:', e);
-        }
-      });
-
-      es.onerror = () => {
-        setIsConnected(false);
-        es.close();
-        // Retry connection in 4 seconds
-        setTimeout(connectSSE, 4000);
-      };
+    if (!enabled) return;
+    void fetchPage();
+    const es = new EventSource("/api/v1/stream/events");
+    es.onopen = () => {
+      setIsConnected(true);
+      void fetchPage();
     };
-
-    connectSSE();
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+    es.onerror = () => setIsConnected(false);
+    es.addEventListener("transaction_processed", (event) => {
+      try {
+        const tx = normalizeTransaction(JSON.parse(event.data));
+        setTransactions((previous) => mergeTransactions(previous, [tx]));
+      } catch {
+        setError("An activity update could not be read. Refresh to try again.");
       }
+    });
+    // Poll as a fallback: the worker and API currently have separate in-memory broadcasters.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchPage();
+    }, 30000);
+    return () => {
+      es.close();
+      window.clearInterval(timer);
+      controller.current?.abort();
+      controller.current = null;
+      busy.current = false;
+      setIsConnected(false);
     };
-  }, [fetchTransactions, fetchAccounts]);
+  }, [enabled, fetchPage]);
 
-  const dismissAnomaly = (txId: string) => {
-    setAnomalies((prev) => prev.filter((a) => a.transaction_id !== txId));
-  };
-
-  return { 
-    transactions, 
-    anomalies, 
-    accounts, 
-    isConnected, 
-    dismissAnomaly,
-    refreshTransactions: fetchTransactions,
-    refreshAccounts: fetchAccounts
+  return {
+    transactions,
+    isConnected,
+    loading,
+    error,
+    hasMore: !!cursor,
+    refresh: () => fetchPage(),
+    loadMore: () => cursor && fetchPage(cursor),
   };
 }

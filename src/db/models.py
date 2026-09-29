@@ -3,22 +3,23 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import List, Optional
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    Boolean,
-    DateTime,
-    Float,
-    ForeignKey,
-    Index,
-    Numeric,
     String,
+    Numeric,
+    Float,
+    Boolean,
     Text,
+    DateTime,
+    ForeignKey,
     UniqueConstraint,
+    Index,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from src.db.base import Base
 
@@ -42,7 +43,7 @@ class Account(Base):
     )
 
     # Relationships
-    transactions: Mapped[list["Transaction"]] = relationship(
+    transactions: Mapped[List["Transaction"]] = relationship(
         "Transaction", back_populates="account", cascade="all, delete-orphan"
     )
 
@@ -62,10 +63,12 @@ class MerchantEntity(Base):
         String(255), unique=True, nullable=False, index=True
     )
     default_category: Mapped[str] = mapped_column(String(100), nullable=False)
-    default_subcategory: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    default_subcategory: Mapped[Optional[str]] = mapped_column(
+        String(100), nullable=True
+    )
 
     # 1536-dimensional vector for cosine similarity matching
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
+    embedding: Mapped[List[float]] = mapped_column(Vector(1536), nullable=False)
 
     occurrence_count: Mapped[int] = mapped_column(default=1, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -98,12 +101,14 @@ class Transaction(Base):
     ext_transaction_id: Mapped[str] = mapped_column(String(255), nullable=False)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     raw_description: Mapped[str] = mapped_column(Text, nullable=False)
-    normalized_merchant: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    normalized_merchant: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
     category: Mapped[str] = mapped_column(String(100), nullable=False)
-    sub_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    sub_category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     is_anomaly: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    anomaly_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anomaly_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     transaction_time: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -130,6 +135,9 @@ class GoogleUserSession(Base):
     """Stores authenticated Google user profile, tokens, and 7-day session state."""
 
     __tablename__ = "google_user_sessions"
+    google_subject: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

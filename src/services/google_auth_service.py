@@ -10,8 +10,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
+from sqlalchemy import select
 
 from src.core.config import settings
+from src.db.models import Account, Transaction
+from src.db.session import AsyncSessionLocal
 from src.schemas.transaction import TransactionWebhookPayload
 from src.services.email_parser import email_parser_service
 from src.services.idempotency import idempotency_service
@@ -90,9 +93,9 @@ class GoogleAuthService:
                 logger.error(
                     "Google token exchange failed: %d - %s",
                     resp.status_code,
-                    resp.text,
+                    "[redacted]",
                 )
-                raise ValueError(f"Failed to exchange Google code: {resp.text}")
+                raise ValueError("Failed to exchange Google code")
             return resp.json()
 
     @classmethod
@@ -110,8 +113,7 @@ class GoogleAuthService:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.post(GOOGLE_TOKEN_URL, data=data)
             if resp.status_code != 200:
-                logger.error("Token refresh failed: %s", resp.text)
-                raise ValueError(f"Failed to refresh token: {resp.text}")
+                raise ValueError("Google token refresh failed")
             return resp.json()
 
     @classmethod
@@ -181,14 +183,12 @@ class GoogleAuthService:
     async def sync_gmail_transactions(
         cls,
         access_token: str,
-        account_id: uuid.UUID | None = None,
+        user_id: uuid.UUID,
         max_results: int = 100,
     ) -> dict[str, Any]:
         """Queries Gmail API for Peruvian banking emails, parses and publishes transactions to Kafka."""
         headers = {"Authorization": f"Bearer {access_token}"}
-        target_account_id = account_id or uuid.UUID(
-            "b0000000-0000-0000-0000-000000000001"
-        )
+        target_account_id = user_id
         acct_str = str(target_account_id)
 
         logger.info(
@@ -220,7 +220,7 @@ class GoogleAuthService:
                         list_resp.status_code,
                         list_resp.text,
                     )
-                    break
+                    raise ValueError("Gmail access failed; reconnect Google")
 
                 data = list_resp.json()
                 page_msgs = data.get("messages", [])
@@ -280,18 +280,6 @@ class GoogleAuthService:
                     subject=subject,
                     email_id=msg_id,
                     email_date_header=email_dt,
-                )
-
-                logger.info(
-                    "Gmail [%s] From: '%s' | Subject: '%s' => is_tx: %s, amount: %s %s, merchant: '%s', parser: %s",
-                    msg_id,
-                    sender,
-                    subject,
-                    parsed.is_transaction,
-                    parsed.amount,
-                    parsed.currency,
-                    parsed.merchant,
-                    parsed.parser_used,
                 )
 
                 if not parsed.is_transaction or not parsed.amount:
@@ -383,9 +371,44 @@ class GoogleAuthService:
                         mask = "*0000"
                         institution = "BCP Banco de Crédito"
 
-                card_account_id = account_id or uuid.uuid5(
-                    uuid.NAMESPACE_DNS, f"{institution}_{mask}"
+                card_account_id = uuid.uuid5(
+                    user_id, f"{institution}_{mask}_{parsed.currency}"
                 )
+                async with AsyncSessionLocal() as db:
+                    account = (
+                        await db.execute(
+                            select(Account)
+                            .where(
+                                Account.user_id == user_id,
+                                Account.institution_name == institution,
+                                Account.account_number_mask == mask,
+                                Account.currency == parsed.currency,
+                            )
+                            .order_by(Account.created_at, Account.id)
+                            .limit(1)
+                        )
+                    ).scalar_one_or_none()
+                    if account:
+                        card_account_id = account.id
+                    else:
+                        db.add(
+                            Account(
+                                id=card_account_id,
+                                user_id=user_id,
+                                institution_name=institution,
+                                account_number_mask=mask,
+                                currency=parsed.currency,
+                            )
+                        )
+                        await db.commit()
+                    duplicate = await db.scalar(
+                        select(Transaction.id).where(
+                            Transaction.account_id == card_account_id,
+                            Transaction.ext_transaction_id == parsed.ext_transaction_id,
+                        )
+                    )
+                    if duplicate:
+                        continue
                 acct_str = str(card_account_id)
 
                 is_new = await idempotency_service.check_and_set(
@@ -395,7 +418,7 @@ class GoogleAuthService:
 
                 if not is_new:
                     logger.info(
-                        "Transaction %s already synced. Skipping.",
+                        "Transaction %s is queued for processing. Skipping duplicate.",
                         parsed.ext_transaction_id,
                     )
                     continue
@@ -403,7 +426,11 @@ class GoogleAuthService:
                 tx_payload = TransactionWebhookPayload(
                     account_id=card_account_id,
                     ext_transaction_id=parsed.ext_transaction_id,
-                    amount=parsed.amount,
+                    amount=(
+                        -abs(parsed.amount)
+                        if parsed.operation_type == "CREDIT"
+                        else parsed.amount
+                    ),
                     currency=parsed.currency,
                     raw_description=parsed.raw_description,
                     transaction_time=parsed.transaction_time,
@@ -423,12 +450,20 @@ class GoogleAuthService:
                     "payload": event_dict,
                 }
 
-                published = await kafka_producer_service.publish_transaction_event(
-                    account_id=acct_str,
-                    ext_transaction_id=parsed.ext_transaction_id,
-                    payload=envelope,
-                )
-
+                try:
+                    published = await kafka_producer_service.publish_transaction_event(
+                        account_id=acct_str,
+                        ext_transaction_id=parsed.ext_transaction_id,
+                        payload=envelope,
+                    )
+                except Exception:
+                    redis = await idempotency_service.get_client()
+                    await redis.delete(
+                        idempotency_service.generate_key(
+                            acct_str, parsed.ext_transaction_id
+                        )
+                    )
+                    raise
                 if published:
                     synced_count += 1
                     synced_transactions.append(
@@ -441,6 +476,14 @@ class GoogleAuthService:
                             "transaction_time": parsed.transaction_time.isoformat(),
                         }
                     )
+                else:
+                    redis = await idempotency_service.get_client()
+                    await redis.delete(
+                        idempotency_service.generate_key(
+                            acct_str, parsed.ext_transaction_id
+                        )
+                    )
+                    raise ValueError("Transaction queue unavailable; retry sync")
 
             logger.info(
                 "Gmail sync completed: %d inspected, %d transactions found, %d synced to Kafka.",

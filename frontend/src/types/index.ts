@@ -22,7 +22,7 @@ export interface AnomalyAlert {
   amount: number;
   category: string;
   reason: string;
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 }
 
 export interface Account {
@@ -30,18 +30,4 @@ export interface Account {
   institution_name: string;
   account_number_mask: string;
   currency: string;
-  transaction_count?: number;
-  total_spend?: number;
 }
-
-export interface UserSession {
-  email: string;
-  name: string;
-  picture?: string;
-  session_token: string;
-  session_expires: string;
-}
-
-export type ThemeMode = 'dark' | 'light';
-
-export type TimePeriodKey = 'all' | 'today' | '7d' | '15d' | '30d' | 'this_month';

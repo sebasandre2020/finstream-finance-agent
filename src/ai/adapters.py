@@ -442,7 +442,7 @@ class LLMAdapterFactory:
 
         # MiniMax Provider
         if (
-            provider == "minimax" or settings.MINIMAX_API_KEY
+            provider == "minimax"
         ) and settings.MINIMAX_API_KEY:
             logger.info(
                 "Initializing MiniMaxAdapter (model=%s, url=%s)",

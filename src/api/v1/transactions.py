@@ -4,13 +4,15 @@ import base64
 import json
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import and_, desc, select
+from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from src.db.models import Transaction
+from src.api.session import require_user
+from src.db.models import Account, GoogleUserSession, Transaction
 from src.db.session import get_db
 from src.schemas.transaction import CursorPaginationResponse, TransactionResponse
 
@@ -27,11 +29,11 @@ def decode_cursor(cursor_str: str) -> tuple[datetime, uuid.UUID]:
         raw_bytes = base64.urlsafe_b64decode(cursor_str.encode("utf-8"))
         data = json.loads(raw_bytes.decode("utf-8"))
         return datetime.fromisoformat(data["t"]), uuid.UUID(data["id"])
-    except Exception as err:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Malformed pagination cursor.",
-        ) from err
+        )
 
 
 @router.get(
@@ -41,14 +43,15 @@ def decode_cursor(cursor_str: str) -> tuple[datetime, uuid.UUID]:
     description="Returns filtered multi-account transaction history ordered chronologically.",
 )
 async def list_transactions(
-    account_id: uuid.UUID | None = Query(None, description="Filter by account UUID"),
-    category: str | None = Query(None, description="Filter by category"),
-    is_anomaly: bool | None = Query(None, description="Filter by anomaly status"),
-    cursor: str | None = Query(None, description="Pagination cursor"),
+    account_id: Optional[uuid.UUID] = Query(None, description="Filter by account UUID"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    is_anomaly: Optional[bool] = Query(None, description="Filter by anomaly status"),
+    cursor: Optional[str] = Query(None, description="Pagination cursor"),
     limit: int = Query(50, ge=1, le=100, description="Page limit"),
     db: AsyncSession = Depends(get_db),
+    user: GoogleUserSession = Depends(require_user),
 ) -> CursorPaginationResponse:
-    filters = []
+    filters = [Transaction.account.has(Account.user_id == user.id)]
     if account_id:
         filters.append(Transaction.account_id == account_id)
     if category:
@@ -59,7 +62,13 @@ async def list_transactions(
     if cursor:
         cursor_dt, cursor_id = decode_cursor(cursor)
         filters.append(
-            and_(Transaction.transaction_time <= cursor_dt, Transaction.id != cursor_id)
+            or_(
+                Transaction.transaction_time < cursor_dt,
+                and_(
+                    Transaction.transaction_time == cursor_dt,
+                    Transaction.id < cursor_id,
+                ),
+            )
         )
 
     # Base query joined with Account
@@ -116,12 +125,17 @@ async def list_transactions(
     description="Retrieves a specific categorized transaction by ID.",
 )
 async def get_transaction(
-    transaction_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    transaction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: GoogleUserSession = Depends(require_user),
 ) -> TransactionResponse:
     stmt = (
         select(Transaction)
         .options(selectinload(Transaction.account))
-        .where(Transaction.id == transaction_id)
+        .where(
+            Transaction.id == transaction_id,
+            Transaction.account.has(Account.user_id == user.id),
+        )
     )
     result = await db.execute(stmt)
     tx = result.scalar_one_or_none()

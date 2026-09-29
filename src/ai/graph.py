@@ -232,12 +232,13 @@ class TransactionAgentGraph:
 
             # Persist learned merchant to pgvector cache
             try:
-                await resolver.upsert_merchant(
-                    normalized_name=initial_state["candidate_merchant"],
-                    category=initial_state["category"],
-                    subcategory=initial_state["subcategory"],
-                    embedding=initial_state["embedding"],
-                )
+                async with session.begin_nested():
+                    await resolver.upsert_merchant(
+                        normalized_name=initial_state["candidate_merchant"],
+                        category=initial_state["category"],
+                        subcategory=initial_state["subcategory"],
+                        embedding=initial_state["embedding"],
+                    )
             except Exception as e:
                 logger.warning("Failed to upsert learned merchant entity: %s", e)
 
