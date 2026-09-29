@@ -5,11 +5,14 @@ Verifies response codes, latency p50/p95/p99, error rates, and throughput.
 """
 
 import asyncio
+import os
 import time
 
 import httpx
 
-TARGET_URL = "https://battery-hormone-placement-week.trycloudflare.com"
+TARGET_URL = os.getenv(
+    "TARGET_URL", "https://creations-dress-efficiency-instant.trycloudflare.com"
+)
 CONCURRENT_USERS = 5
 REQUESTS_PER_USER = 20
 
