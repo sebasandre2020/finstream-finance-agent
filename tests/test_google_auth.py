@@ -2,7 +2,7 @@
 
 import base64
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -135,10 +135,17 @@ async def test_sync_gmail_transactions_mocked():
             new_callable=AsyncMock,
             return_value=True,
         ),
+        patch("src.services.google_auth_service.AsyncSessionLocal") as mock_db,
     ):
+        mock_session = AsyncMock()
+        mock_db.return_value.__aenter__.return_value = mock_session
+        mock_acct_res = MagicMock()
+        mock_acct_res.scalar_one_or_none.return_value = MagicMock(id=uuid.uuid4())
+        mock_session.execute.return_value = mock_acct_res
+        mock_session.scalar.return_value = None
         result = await GoogleAuthService.sync_gmail_transactions(
             access_token="fake_access_token_123",
-            account_id=uuid.UUID("b0000000-0000-0000-0000-000000000001"),
+            user_id=uuid.UUID("b0000000-0000-0000-0000-000000000001"),
         )
 
         assert result["status"] == "success"

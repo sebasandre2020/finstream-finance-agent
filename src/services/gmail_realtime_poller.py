@@ -1,7 +1,9 @@
-"""Continuous Background Poller for Real-Time Gmail Banking Transactions."""
+"""Import Gmail activity only for the authenticated profile that owns it."""
 
 import asyncio
+import json
 import logging
+import secrets
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -9,163 +11,148 @@ from sqlalchemy import select
 from src.db.models import GoogleUserSession
 from src.db.session import AsyncSessionLocal
 from src.services.google_auth_service import GoogleAuthService
-from src.services.sse_broadcaster import sse_broadcaster
+from src.services.idempotency import idempotency_service
 
-logger = logging.getLogger("GmailRealtimePoller")
-
-POLL_INTERVAL_SECONDS = 60
+logger = logging.getLogger(__name__)
 
 
 class GmailRealtimePoller:
-    """Continuously monitors Gmail for connected users and ingests real-time bank notifications."""
+    def __init__(self):
+        self.task = None
+        self.manual_tasks = set()
 
-    def __init__(self, interval_seconds: int = POLL_INTERVAL_SECONDS):
-        self.interval = interval_seconds
-        self._task: asyncio.Task | None = None
-        self._is_running = False
+    async def start(self):
+        self.task = asyncio.create_task(self.run())
 
-    async def start(self) -> None:
-        """Starts the background polling loop."""
-        if self._is_running:
-            return
-        self._is_running = True
-        self._task = asyncio.create_task(self._poll_loop())
-        logger.info(
-            "🚀 Gmail Realtime Poller started (polling interval: %ds).",
-            self.interval,
-        )
-
-    async def stop(self) -> None:
-        """Stops the background polling loop gracefully."""
-        self._is_running = False
-        if self._task:
-            self._task.cancel()
+    async def stop(self):
+        for task in self.manual_tasks:
+            task.cancel()
+        if self.manual_tasks:
+            await asyncio.gather(*self.manual_tasks, return_exceptions=True)
+        if self.task:
+            self.task.cancel()
             try:
-                await self._task
+                await self.task
             except asyncio.CancelledError:
                 pass
-            self._task = None
-            logger.info("🛑 Gmail Realtime Poller stopped.")
 
-    async def sync_user_now(self, session_token: str) -> dict:
-        """Immediately triggers a sync for a specific user session token."""
-        async with AsyncSessionLocal() as db:
-            now = datetime.now(UTC)
-            res = await db.execute(
-                select(GoogleUserSession).where(
-                    GoogleUserSession.session_token == session_token,
-                    GoogleUserSession.session_expires_at > now,
-                )
-            )
-            user_session = res.scalar_one_or_none()
-            if not user_session:
-                return {"status": "error", "error": "Invalid or expired session"}
+    async def status(self, user_id):
+        redis = await idempotency_service.get_client()
+        if await redis.get(f"gmail:sync:{user_id}"):
+            return {"status": "syncing"}
+        saved = await redis.get(f"gmail:sync-result:{user_id}")
+        return json.loads(saved) if saved else {"status": "idle"}
 
-            access_token = await self._ensure_valid_token(user_session, db)
-            sync_res = await GoogleAuthService.sync_gmail_transactions(
-                access_token=access_token,
-                max_results=30,
-            )
-            user_session.last_synced_at = datetime.now(UTC)
-            await db.commit()
-            return sync_res
-
-    async def _ensure_valid_token(self, user_session: GoogleUserSession, db) -> str:
-        """Refreshes Google access token using refresh_token if expired or near expiry."""
-        now = datetime.now(UTC)
-        if (
-            user_session.token_expires_at
-            and user_session.token_expires_at > now + timedelta(minutes=5)
-        ):
-            return user_session.access_token
-
-        if not user_session.refresh_token:
-            return user_session.access_token
-
-        try:
-            logger.info(
-                "Refreshing expired Google access token for %s",
-                user_session.email,
-            )
-            refreshed = await GoogleAuthService.refresh_access_token(
-                user_session.refresh_token
-            )
-            new_access_token = refreshed["access_token"]
-            expires_in = refreshed.get("expires_in", 3600)
-            user_session.access_token = new_access_token
-            user_session.token_expires_at = now + timedelta(seconds=expires_in)
-            await db.commit()
-            return new_access_token
-        except Exception as e:
-            logger.warning(
-                "Failed to refresh Google token for %s: %s",
-                user_session.email,
-                e,
-            )
-            return user_session.access_token
-
-    async def _poll_loop(self) -> None:
-        """Main polling cycle."""
-        # Initial wait so services can settle at startup
-        await asyncio.sleep(5)
-
-        while self._is_running:
+    async def request_sync(self, user_id):
+        async def run():
             try:
-                now = datetime.now(UTC)
-                async with AsyncSessionLocal() as db:
-                    result = await db.execute(
+                await self.sync_user_now(user_id)
+            except Exception:
+                logger.warning("Requested Gmail sync failed for profile %s", user_id)
+
+        task = asyncio.create_task(run())
+        self.manual_tasks.add(task)
+        task.add_done_callback(self.manual_tasks.discard)
+        return {"status": "started"}
+
+    async def sync_user_now(self, user_id):
+        redis = await idempotency_service.get_client()
+        key, lock = f"gmail:sync:{user_id}", secrets.token_urlsafe(24)
+        if not await redis.set(key, lock, nx=True, ex=150):
+            return {"status": "already_syncing", "synced": 0}
+        try:
+            async with AsyncSessionLocal() as db:
+                user = (
+                    await db.execute(
                         select(GoogleUserSession).where(
-                            GoogleUserSession.session_expires_at > now
+                            GoogleUserSession.id == user_id,
+                            GoogleUserSession.session_expires_at > datetime.now(UTC),
                         )
                     )
-                    active_sessions = result.scalars().all()
-
-                    for user_session in active_sessions:
-                        try:
-                            token = await self._ensure_valid_token(user_session, db)
-                            sync_result = (
-                                await GoogleAuthService.sync_gmail_transactions(
-                                    access_token=token,
-                                    max_results=15,
-                                )
-                            )
-                            user_session.last_synced_at = datetime.now(UTC)
-                            await db.commit()
-
-                            synced_count = sync_result.get("synced", 0)
-                            if synced_count > 0:
-                                logger.info(
-                                    "✨ Poller ingested %d new transactions for %s",
-                                    synced_count,
-                                    user_session.email,
-                                )
-                                await sse_broadcaster.broadcast(
-                                    "gmail_sync_complete",
-                                    {
-                                        "email": user_session.email,
-                                        "synced": synced_count,
-                                        "synced_at": datetime.now(UTC).isoformat(),
-                                    },
-                                )
-                        except Exception as user_err:
-                            logger.error(
-                                "Error during background Gmail sync for %s: %s",
-                                user_session.email,
-                                user_err,
-                            )
-
-            except asyncio.CancelledError:
-                break
-            except Exception as loop_err:
-                logger.error(
-                    "Unexpected error in Gmail realtime poller loop: %s",
-                    loop_err,
+                ).scalar_one_or_none()
+                if not user:
+                    raise ValueError("Session expired")
+                if not user.token_expires_at or user.token_expires_at <= datetime.now(
+                    UTC
+                ) + timedelta(minutes=5):
+                    if not user.refresh_token:
+                        raise ValueError("Reconnect Google")
+                    tokens = await GoogleAuthService.refresh_access_token(
+                        user.refresh_token
+                    )
+                    user.access_token = tokens["access_token"]
+                    user.token_expires_at = datetime.now(UTC) + timedelta(
+                        seconds=int(tokens.get("expires_in", 3600))
+                    )
+                    await db.commit()
+                result = await asyncio.wait_for(
+                    GoogleAuthService.sync_gmail_transactions(
+                        user.access_token, user_id=user.id, max_results=30
+                    ),
+                    timeout=120,
                 )
+                user.last_synced_at = datetime.now(UTC)
+                await db.commit()
+                await redis.set(
+                    f"gmail:sync-result:{user_id}",
+                    json.dumps(result, default=str),
+                    ex=86400,
+                )
+                return result
+        except Exception:
+            await redis.set(
+                f"gmail:sync-result:{user_id}",
+                json.dumps(
+                    {
+                        "status": "error",
+                        "message": "Gmail sync could not finish. Please try again.",
+                    }
+                ),
+                ex=86400,
+            )
+            raise
+        finally:
+            await redis.eval(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+                1,
+                key,
+                lock,
+            )
 
+    async def run(self):
+        await asyncio.sleep(5)
+        while True:
             try:
-                await asyncio.sleep(self.interval)
-            except asyncio.CancelledError:
-                break
+                async with AsyncSessionLocal() as db:
+                    ids = (
+                        (
+                            await db.execute(
+                                select(GoogleUserSession.id).where(
+                                    GoogleUserSession.session_expires_at
+                                    > datetime.now(UTC),
+                                    GoogleUserSession.google_subject.is_not(None),
+                                )
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+                for user_id in ids:
+                    try:
+                        # Coordinate the polling interval across API processes.
+                        redis = await idempotency_service.get_client()
+                        if not await redis.set(
+                            f"gmail:poll:{user_id}", "1", nx=True, ex=60
+                        ):
+                            continue
+                        await self.sync_user_now(user_id)
+                    except Exception:
+                        logger.warning(
+                            "Background Gmail sync failed for profile %s", user_id
+                        )
+            except Exception:
+                logger.warning("Gmail sync is temporarily unavailable")
+            await asyncio.sleep(60)
 
 
 gmail_realtime_poller = GmailRealtimePoller()

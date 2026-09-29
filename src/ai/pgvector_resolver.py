@@ -1,6 +1,7 @@
 """Sub-Millisecond Semantic Merchant Resolution using pgvector HNSW Index."""
 
 import logging
+import uuid
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,6 +73,7 @@ class PgVectorMerchantResolver:
         vector_str = "[" + ",".join(str(f) for f in embedding) + "]"
         sql = text("""
             INSERT INTO merchant_entities (
+                id,
                 normalized_name,
                 default_category,
                 default_subcategory,
@@ -81,6 +83,7 @@ class PgVectorMerchantResolver:
                 last_seen_at
             )
             VALUES (
+                :id,
                 :name,
                 :cat,
                 :subcat,
@@ -96,10 +99,11 @@ class PgVectorMerchantResolver:
         await self.session.execute(
             sql,
             {
+                "id": uuid.uuid4(),
                 "name": normalized_name,
                 "cat": category,
                 "subcat": subcategory,
                 "embedding": vector_str,
             },
         )
-        await self.session.commit()
+        await self.session.flush()

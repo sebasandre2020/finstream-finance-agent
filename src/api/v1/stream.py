@@ -1,59 +1,73 @@
-"""Server-Sent Events (SSE) Live Feed Endpoint for React Dashboard."""
+"""Authenticated event stream; never forwards events belonging to another profile."""
 
 import asyncio
 import json
-import logging
-from collections.abc import AsyncGenerator
+import uuid
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
+from src.api.session import require_user
+from src.db.models import Account, GoogleUserSession, Transaction
+from src.db.session import AsyncSessionLocal
 from src.services.sse_broadcaster import sse_broadcaster
 
-logger = logging.getLogger("SSEStreamEndpoint")
 router = APIRouter(prefix="/stream", tags=["Streaming & SSE"])
 
 
-async def event_generator(request: Request) -> AsyncGenerator[str, None]:
-    """Yields real-time events to connected clients with 15-second heartbeats."""
+async def event_generator(request, user):
     queue = sse_broadcaster.subscribe()
     try:
-        # Initial greeting event
-        yield 'event: connected\ndata: {"status": "ready"}\n\n'
-
-        while True:
-            # Client disconnected check
-            if await request.is_disconnected():
-                break
-
+        yield 'event: connected\ndata: {"status":"ready"}\n\n'
+        while not await request.is_disconnected():
+            # Recheck revocation while connected, including another tab signing out.
+            async with AsyncSessionLocal() as db:
+                active = await db.scalar(
+                    select(GoogleUserSession.id).where(
+                        GoogleUserSession.id == user.id,
+                        GoogleUserSession.session_token == user.session_token,
+                        GoogleUserSession.session_expires_at > datetime.now(UTC),
+                    )
+                )
+                if not active:
+                    break
             try:
-                # Wait for next event or trigger heartbeat after 15 seconds
-                msg = await asyncio.wait_for(queue.get(), timeout=15.0)
-                event_name = msg.get("event", "message")
-                payload = json.dumps(msg.get("data", {}), default=str)
-                yield f"event: {event_name}\ndata: {payload}\n\n"
+                message = await asyncio.wait_for(queue.get(), timeout=15)
             except TimeoutError:
-                # Heartbeat comment to keep connection alive through ALBs and proxies
                 yield ": ping\n\n"
-    except asyncio.CancelledError:
-        pass
+                continue
+            if message.get("event") not in (
+                "transaction_processed",
+                "anomaly_detected",
+            ):
+                continue
+            data = message.get("data", {})
+            try:
+                transaction_id = uuid.UUID(
+                    data.get("id") or data.get("transaction_id", "")
+                )
+            except (ValueError, TypeError):
+                continue
+            async with AsyncSessionLocal() as db:
+                owned = await db.scalar(
+                    select(Transaction.id)
+                    .join(Account)
+                    .where(Transaction.id == transaction_id, Account.user_id == user.id)
+                )
+            if owned:
+                yield f"event: {message['event']}\ndata: {json.dumps(data, default=str)}\n\n"
     finally:
         sse_broadcaster.unsubscribe(queue)
 
 
-@router.get(
-    "/events",
-    response_class=StreamingResponse,
-    summary="Subscribe to live SSE stream",
-    description="Maintains persistent HTTP streaming connection pushing transaction updates and anomaly alerts.",
-)
-async def live_stream(request: Request):
+@router.get("/events")
+async def live_stream(
+    request: Request, user: GoogleUserSession = Depends(require_user)
+):
     return StreamingResponse(
-        event_generator(request),
+        event_generator(request, user),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disables proxy buffering in Nginx/ALBs
-        },
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
