@@ -5,7 +5,6 @@ Provisions VCN, Internet Gateway, Subnet, Security List, and an Ampere A1.Flex V
 """
 
 import json
-import os
 import subprocess
 import sys
 import time
@@ -215,7 +214,7 @@ def main():
     print("🎉 DEPLOYMENT READY!")
     print("=" * 60)
     print(f"Public IP Address:   {public_ip}")
-    print(f"Username:            ubuntu")
+    print("Username:            ubuntu")
     print(f"Private Key:         {SSH_PRIV_KEY}")
     print(f"SSH Command:         ssh -i \"{SSH_PRIV_KEY}\" ubuntu@{public_ip}")
     print(f"Application URL:     http://{public_ip}:3000")

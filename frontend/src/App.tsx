@@ -104,9 +104,15 @@ export default function App({
   }, [transactions]);
   const dominantCurrency = useMemo(() => {
     if (!transactions.length) return "USD";
-    return (
-      [...currencyCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "USD"
-    );
+    const entries = [...currencyCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const usdCount = currencyCounts.get("USD") || 0;
+    if (entries[0] && entries[0][1] > usdCount) {
+      return entries[0][0];
+    }
+    if (currencyCounts.has("USD")) {
+      return "USD";
+    }
+    return entries[0]?.[0] || "USD";
   }, [currencyCounts, transactions.length]);
   const currencies = useMemo(
     () => [...new Set(transactions.map((tx) => tx.currency))].sort(),
