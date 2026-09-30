@@ -5,15 +5,18 @@ This document explains the zero-cost architecture implemented for the technical 
 
 ---
 
-### 1. Active Technical Demo (Live Now)
+### 1. Active Technical Demo (Live 24/7 in Cloud)
 
-The application is deployed and currently accessible via Cloudflare Tunnel with global edge routing, automatic SSL/TLS, and DDoS protection:
+The application is deployed 24/7 on an Oracle Cloud Infrastructure Always Free VM (Ampere A1 ARM64, 4 OCPU, 24 GB RAM) and accessible worldwide at **$0.00 USD cost**:
 
-* **Live Frontend & Demo Dashboard:**  
-  👉 **`https://battery-hormone-placement-week.trycloudflare.com`**
+* **Live Frontend & Demo Dashboard (Cloudflare Tunnel HTTPS):**  
+  👉 **`https://institutions-done-timing-induction.trycloudflare.com`**
+* **Direct Cloud Public IP Address:**  
+  👉 **`http://161.153.9.52:3000`**
 * **Interactive API Documentation (Swagger):**  
-  👉 **`https://battery-hormone-placement-week.trycloudflare.com/docs`**
-* **Local Internal Address:** `http://localhost:3000`
+  👉 **`http://161.153.9.52:3000/docs`**
+* **Observability & Tracing (Langfuse):**  
+  👉 **`http://161.153.9.52:3001`**
 
 ---
 
@@ -86,3 +89,20 @@ To keep the application running 24/7 in the cloud without keeping your local mac
      ```bash
      docker logs finance_tunnel --tail 20
      ```
+
+---
+
+### 5. Automated CI/CD Deployment with GitHub Actions
+
+The repository includes a GitHub Actions continuous deployment workflow (`.github/workflows/ci-cd.yml`):
+
+* **Trigger:** Every `git push` to `main` (e.g. after merging a Pull Request).
+* **Pipeline Stages:**
+  1. **Code Quality:** Ruff linter, Black code format check, Bandit security scan, ESLint frontend lint.
+  2. **Automated Tests:** Starts isolated PostgreSQL 16 (`pgvector`) & Redis services, runs all 45 integration & unit tests via PyTest.
+  3. **Cloud Deploy:** Authenticates to the Oracle Cloud Always Free VM using repository secrets (`ORACLE_HOST`, `ORACLE_USER`, `ORACLE_SSH_KEY`), synchronizes updated files via `rsync` (safely preserving `.env` and data volumes), rebuilds and restarts the updated containers (`api`, `worker`, `frontend`), runs database migrations, and verifies service readiness.
+
+#### Required GitHub Secrets:
+* `ORACLE_HOST`: Public IP of the Oracle Cloud VM (`161.153.9.52`).
+* `ORACLE_USER`: SSH username (`ubuntu`).
+* `ORACLE_SSH_KEY`: Private SSH key for automated deployment.

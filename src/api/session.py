@@ -59,9 +59,7 @@ def require_same_origin(request: Request) -> None:
 
     # 2. Allowed if origin netloc matches the request's actual Host / X-Forwarded-Host
     req_host = (
-        request.headers.get("x-forwarded-host")
-        or request.headers.get("host")
-        or ""
+        request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
     ).lower()
     if req_host and origin_netloc == req_host:
         return

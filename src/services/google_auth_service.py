@@ -200,8 +200,6 @@ class GoogleAuthService:
 
         async with httpx.AsyncClient(timeout=25.0) as client:
             messages_meta: list[dict[str, Any]] = []
-            page_token = None
-            pages_fetched = 0
 
             # Fetch 1 page (up to max_results, default 30) to prevent quota exhaustion
             search_params = {
@@ -268,7 +266,11 @@ class GoogleAuthService:
                         else:
                             break
                     except Exception as net_err:
-                        logger.warning("Network error fetching Gmail message %s: %s", msg_id, net_err)
+                        logger.warning(
+                            "Network error fetching Gmail message %s: %s",
+                            msg_id,
+                            net_err,
+                        )
                         break
 
                 if not msg_resp or msg_resp.status_code != 200:
@@ -432,7 +434,9 @@ class GoogleAuthService:
                         )
                     )
                     if duplicate:
-                        await idempotency_service.mark_message_processed(user_id, msg_id)
+                        await idempotency_service.mark_message_processed(
+                            user_id, msg_id
+                        )
                         continue
                 acct_str = str(card_account_id)
 
