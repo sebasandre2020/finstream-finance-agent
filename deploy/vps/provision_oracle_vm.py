@@ -17,7 +17,9 @@ if sys.platform == "win32":
         pass
 
 OCI_CLI = r"C:\Program Files (x86)\Oracle\oci_cli\oci.exe"
-COMPARTMENT_ID = "ocid1.tenancy.oc1..aaaaaaaasolj5fqddy4sj3ncyzyqspgj7wdd4lc3tva6k3y65slznwgd362q"
+COMPARTMENT_ID = (
+    "ocid1.tenancy.oc1..aaaaaaaasolj5fqddy4sj3ncyzyqspgj7wdd4lc3tva6k3y65slznwgd362q"
+)
 SSH_PUB_KEY = r"C:\Repositories\GHProjects\OracleKeys\ssh-key-2026-09-30.key.pub"
 SSH_PRIV_KEY = r"C:\Repositories\GHProjects\OracleKeys\ssh-key-2026-09-30.key"
 UBUNTU_IMAGE_ID = "ocid1.image.oc1.phx.aaaaaaaa5dapc7tqpoa4tpchrrtcyhgogpwgvgl6hvqypxqbgm3sa7agvsqq"  # Ubuntu 24.04 ARM64
@@ -48,17 +50,27 @@ def main():
     # 1. Check or Create VCN
     print("\n📦 Step 1: Checking Virtual Cloud Network (VCN)...")
     vcns = run_oci(["network", "vcn", "list", "--compartment-id", COMPARTMENT_ID]) or []
-    finance_vcn = next((v for v in vcns if v.get("display-name") == "finance-vcn"), None)
+    finance_vcn = next(
+        (v for v in vcns if v.get("display-name") == "finance-vcn"), None
+    )
 
     if not finance_vcn:
         print("  -> Creating 'finance-vcn' (10.0.0.0/16)...")
-        finance_vcn = run_oci([
-            "network", "vcn", "create",
-            "--compartment-id", COMPARTMENT_ID,
-            "--cidr-block", "10.0.0.0/16",
-            "--display-name", "finance-vcn",
-            "--dns-label", "financevcn"
-        ])
+        finance_vcn = run_oci(
+            [
+                "network",
+                "vcn",
+                "create",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--cidr-block",
+                "10.0.0.0/16",
+                "--display-name",
+                "finance-vcn",
+                "--dns-label",
+                "financevcn",
+            ]
+        )
         print("  ✅ VCN created:", finance_vcn["id"])
     else:
         print("  ✅ Using existing VCN:", finance_vcn["id"])
@@ -69,18 +81,39 @@ def main():
 
     # 2. Check or Create Internet Gateway
     print("\n🌐 Step 2: Configuring Internet Gateway & Routes...")
-    igws = run_oci(["network", "internet-gateway", "list", "--compartment-id", COMPARTMENT_ID, "--vcn-id", vcn_id]) or []
+    igws = (
+        run_oci(
+            [
+                "network",
+                "internet-gateway",
+                "list",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--vcn-id",
+                vcn_id,
+            ]
+        )
+        or []
+    )
     igw = next((i for i in igws if i.get("display-name") == "finance-igw"), None)
 
     if not igw:
         print("  -> Creating 'finance-igw'...")
-        igw = run_oci([
-            "network", "internet-gateway", "create",
-            "--compartment-id", COMPARTMENT_ID,
-            "--vcn-id", vcn_id,
-            "--is-enabled", "true",
-            "--display-name", "finance-igw"
-        ])
+        igw = run_oci(
+            [
+                "network",
+                "internet-gateway",
+                "create",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--vcn-id",
+                vcn_id,
+                "--is-enabled",
+                "true",
+                "--display-name",
+                "finance-igw",
+            ]
+        )
         print("  ✅ Internet Gateway created:", igw["id"])
     else:
         print("  ✅ Using existing Internet Gateway:", igw["id"])
@@ -93,50 +126,116 @@ def main():
         {
             "destination": "0.0.0.0/0",
             "destinationType": "CIDR_BLOCK",
-            "networkEntityId": igw_id
+            "networkEntityId": igw_id,
         }
     ]
-    run_oci([
-        "network", "route-table", "update",
-        "--rt-id", default_rt_id,
-        "--route-rules", json.dumps(route_rules),
-        "--force"
-    ])
+    run_oci(
+        [
+            "network",
+            "route-table",
+            "update",
+            "--rt-id",
+            default_rt_id,
+            "--route-rules",
+            json.dumps(route_rules),
+            "--force",
+        ]
+    )
     print("  ✅ Route table configured for internet access.")
 
     # 3. Update Security List (Allow SSH 22, HTTP 80, HTTPS 443, App 3000, Langfuse 3001, API 8000)
     print("\n🔒 Step 3: Configuring Security Rules...")
     ingress_rules = [
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 22, "min": 22}}, "description": "SSH"},
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 80, "min": 80}}, "description": "HTTP"},
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 443, "min": 443}}, "description": "HTTPS"},
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 3000, "min": 3000}}, "description": "Frontend Dashboard"},
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 3001, "min": 3001}}, "description": "Langfuse"},
-        {"protocol": "6", "source": "0.0.0.0/0", "tcpOptions": {"destinationPortRange": {"max": 8000, "min": 8000}}, "description": "FastAPI"},
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 22, "min": 22}},
+            "description": "SSH",
+        },
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 80, "min": 80}},
+            "description": "HTTP",
+        },
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 443, "min": 443}},
+            "description": "HTTPS",
+        },
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 3000, "min": 3000}},
+            "description": "Frontend Dashboard",
+        },
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 3001, "min": 3001}},
+            "description": "Langfuse",
+        },
+        {
+            "protocol": "6",
+            "source": "0.0.0.0/0",
+            "tcpOptions": {"destinationPortRange": {"max": 8000, "min": 8000}},
+            "description": "FastAPI",
+        },
     ]
-    run_oci([
-        "network", "security-list", "update",
-        "--security-list-id", default_sl_id,
-        "--ingress-security-rules", json.dumps(ingress_rules),
-        "--force"
-    ])
+    run_oci(
+        [
+            "network",
+            "security-list",
+            "update",
+            "--security-list-id",
+            default_sl_id,
+            "--ingress-security-rules",
+            json.dumps(ingress_rules),
+            "--force",
+        ]
+    )
     print("  ✅ Ingress firewall rules updated (22, 80, 443, 3000, 3001, 8000 open).")
 
     # 4. Check or Create Public Subnet
     print("\n🔌 Step 4: Configuring Public Subnet...")
-    subnets = run_oci(["network", "subnet", "list", "--compartment-id", COMPARTMENT_ID, "--vcn-id", vcn_id]) or []
-    subnet = next((s for s in subnets if s.get("display-name") == "finance-subnet"), None)
+    subnets = (
+        run_oci(
+            [
+                "network",
+                "subnet",
+                "list",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--vcn-id",
+                vcn_id,
+            ]
+        )
+        or []
+    )
+    subnet = next(
+        (s for s in subnets if s.get("display-name") == "finance-subnet"), None
+    )
 
     if not subnet:
         print("  -> Creating 'finance-subnet' (10.0.1.0/24)...")
-        subnet = run_oci([
-            "network", "subnet", "create",
-            "--compartment-id", COMPARTMENT_ID,
-            "--vcn-id", vcn_id,
-            "--cidr-block", "10.0.1.0/24",
-            "--display-name", "finance-subnet",
-            "--dns-label", "financesubnet"
-        ])
+        subnet = run_oci(
+            [
+                "network",
+                "subnet",
+                "create",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--vcn-id",
+                vcn_id,
+                "--cidr-block",
+                "10.0.1.0/24",
+                "--display-name",
+                "finance-subnet",
+                "--dns-label",
+                "financesubnet",
+            ]
+        )
         print("  ✅ Subnet created:", subnet["id"])
     else:
         print("  ✅ Using existing Subnet:", subnet["id"])
@@ -145,33 +244,71 @@ def main():
 
     # 5. Check or Launch Compute Instance
     print("\n⚡ Step 5: Checking Compute Instance...")
-    instances = run_oci(["compute", "instance", "list", "--compartment-id", COMPARTMENT_ID]) or []
-    inst = next((i for i in instances if i.get("display-name") == "finance-agent-server" and i.get("lifecycle-state") not in ("TERMINATED", "TERMINATING")), None)
+    instances = (
+        run_oci(["compute", "instance", "list", "--compartment-id", COMPARTMENT_ID])
+        or []
+    )
+    inst = next(
+        (
+            i
+            for i in instances
+            if i.get("display-name") == "finance-agent-server"
+            and i.get("lifecycle-state") not in ("TERMINATED", "TERMINATING")
+        ),
+        None,
+    )
 
     if not inst:
         print("  -> Searching available Availability Domains...")
-        ads = run_oci(["iam", "availability-domain", "list", "--compartment-id", COMPARTMENT_ID]) or []
+        ads = (
+            run_oci(
+                [
+                    "iam",
+                    "availability-domain",
+                    "list",
+                    "--compartment-id",
+                    COMPARTMENT_ID,
+                ]
+            )
+            or []
+        )
         ad_names = [a["name"] for a in ads]
 
         shape_config = json.dumps({"ocpus": 4, "memoryInGBs": 24})
         launched = False
 
         for ad in ad_names:
-            print(f"  -> Attempting instance launch in {ad} (Always Free: 4 OCPU, 24 GB RAM, Ubuntu 24.04 ARM64)...")
+            print(
+                f"  -> Attempting instance launch in {ad} (Always Free: 4 OCPU, 24 GB RAM, Ubuntu 24.04 ARM64)..."
+            )
             try:
-                inst = run_oci([
-                    "compute", "instance", "launch",
-                    "--compartment-id", COMPARTMENT_ID,
-                    "--availability-domain", ad,
-                    "--shape", "VM.Standard.A1.Flex",
-                    "--shape-config", shape_config,
-                    "--image-id", UBUNTU_IMAGE_ID,
-                    "--subnet-id", subnet_id,
-                    "--assign-public-ip", "true",
-                    "--display-name", "finance-agent-server",
-                    "--ssh-authorized-keys-file", SSH_PUB_KEY,
-                    "--boot-volume-size-in-gbs", "50"
-                ])
+                inst = run_oci(
+                    [
+                        "compute",
+                        "instance",
+                        "launch",
+                        "--compartment-id",
+                        COMPARTMENT_ID,
+                        "--availability-domain",
+                        ad,
+                        "--shape",
+                        "VM.Standard.A1.Flex",
+                        "--shape-config",
+                        shape_config,
+                        "--image-id",
+                        UBUNTU_IMAGE_ID,
+                        "--subnet-id",
+                        subnet_id,
+                        "--assign-public-ip",
+                        "true",
+                        "--display-name",
+                        "finance-agent-server",
+                        "--ssh-authorized-keys-file",
+                        SSH_PUB_KEY,
+                        "--boot-volume-size-in-gbs",
+                        "50",
+                    ]
+                )
                 launched = True
                 print(f"  🎉 Successfully launched instance in {ad}!")
                 break
@@ -183,7 +320,9 @@ def main():
             print("❌ Failed to launch instance across all availability domains.")
             sys.exit(1)
     else:
-        print(f"  ✅ Instance already exists: {inst['id']} (State: {inst['lifecycle-state']})")
+        print(
+            f"  ✅ Instance already exists: {inst['id']} (State: {inst['lifecycle-state']})"
+        )
 
     instance_id = inst["id"]
 
@@ -201,10 +340,36 @@ def main():
 
     # 7. Get Public IP Address
     print("\n🔍 Step 7: Retrieving Public IP Address...")
-    vnic_attachments = run_oci(["compute", "vnic-attachment", "list", "--compartment-id", COMPARTMENT_ID, "--instance-id", instance_id]) or []
+    vnic_attachments = (
+        run_oci(
+            [
+                "compute",
+                "vnic-attachment",
+                "list",
+                "--compartment-id",
+                COMPARTMENT_ID,
+                "--instance-id",
+                instance_id,
+            ]
+        )
+        or []
+    )
     if not vnic_attachments:
         time.sleep(5)
-        vnic_attachments = run_oci(["compute", "vnic-attachment", "list", "--compartment-id", COMPARTMENT_ID, "--instance-id", instance_id]) or []
+        vnic_attachments = (
+            run_oci(
+                [
+                    "compute",
+                    "vnic-attachment",
+                    "list",
+                    "--compartment-id",
+                    COMPARTMENT_ID,
+                    "--instance-id",
+                    instance_id,
+                ]
+            )
+            or []
+        )
 
     vnic_id = vnic_attachments[0]["vnic-id"]
     vnic_info = run_oci(["network", "vnic", "get", "--vnic-id", vnic_id])
@@ -216,7 +381,7 @@ def main():
     print(f"Public IP Address:   {public_ip}")
     print("Username:            ubuntu")
     print(f"Private Key:         {SSH_PRIV_KEY}")
-    print(f"SSH Command:         ssh -i \"{SSH_PRIV_KEY}\" ubuntu@{public_ip}")
+    print(f'SSH Command:         ssh -i "{SSH_PRIV_KEY}" ubuntu@{public_ip}')
     print(f"Application URL:     http://{public_ip}:3000")
     print(f"Swagger API Docs:    http://{public_ip}:3000/docs")
     print(f"Langfuse Monitoring: http://{public_ip}:3001")
@@ -225,13 +390,17 @@ def main():
     # Save details to file
     out_file = r"C:\Repositories\GHProjects\OracleKeys\server_info.json"
     with open(out_file, "w") as f:
-        json.dump({
-            "public_ip": public_ip,
-            "instance_id": instance_id,
-            "user": "ubuntu",
-            "ssh_key": SSH_PRIV_KEY,
-            "created_at": time.time()
-        }, f, indent=2)
+        json.dump(
+            {
+                "public_ip": public_ip,
+                "instance_id": instance_id,
+                "user": "ubuntu",
+                "ssh_key": SSH_PRIV_KEY,
+                "created_at": time.time(),
+            },
+            f,
+            indent=2,
+        )
     print(f"Credentials saved to: {out_file}\n")
 
 
