@@ -1643,3 +1643,415 @@ input::placeholder {
     width: 100%;
   }
 }
+
+/* Minimalist Language & Theme controls */
+.lang-toggle {
+  gap: 5px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: #314a4f;
+}
+.lang-toggle .lang-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #243b40;
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-toolbar {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 10;
+}
+.auth-toolbar .icon-button {
+  color: #2c4449;
+  background: #ffffff;
+  border: 1px solid #dce5e5;
+}
+.auth-toolbar .icon-button:hover {
+  background: #edf3f3;
+  color: #172a2e;
+}
+.auth-shell {
+  position: relative;
+}
+@media (max-width: 540px) {
+  .connection-text {
+    display: none;
+  }
+  .breadcrumb {
+    max-width: 105px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Dark Theme */
+html.dark,
+:root.dark {
+  color: #e2ece9;
+  background: #0d1515;
+  --ink: #e2ece9;
+  --muted: #a3bcbe;
+  --green: #2ab5a1;
+  --line: #223333;
+}
+html.dark body {
+  background: #0d1515;
+  color: #e2ece9;
+}
+html.dark p,
+html.dark .workspace-label,
+html.dark .breadcrumb,
+html.dark .connection,
+html.dark .connection-text,
+html.dark .date-label,
+html.dark .scope-note,
+html.dark .metric-label,
+html.dark .metric > span,
+html.dark .donut > div > small,
+html.dark .category-row > small,
+html.dark .plan-card > p,
+html.dark .target-value > span,
+html.dark .progress-label,
+html.dark .progress-label > span,
+html.dark .plan-card > small,
+html.dark .review-banner > span > small,
+html.dark .merchant-info > small,
+html.dark .transaction-date,
+html.dark .panel-footer,
+html.dark .panel-footer > span,
+html.dark .page-footer,
+html.dark .page-footer > span,
+html.dark .page-footer > button,
+html.dark .user-name > small,
+html.dark .data-note,
+html.dark dt {
+  color: var(--muted);
+}
+html.dark .text-button {
+  color: #35c4b1;
+}
+html.dark .text-button:hover {
+  color: #55dfcc;
+}
+html.dark .sidebar {
+  background: #141f1f;
+  border-right-color: var(--line);
+}
+html.dark .topbar {
+  background: #141f1f;
+  border-bottom-color: var(--line);
+}
+html.dark .breadcrumb strong {
+  color: #d1e2df;
+}
+html.dark .nav-item {
+  color: #8ca3a5;
+}
+html.dark .nav-item:hover {
+  background: #192727;
+  color: #e2ece9;
+}
+html.dark .nav-item.active {
+  color: #4ed8c4;
+  background: #19342e;
+}
+html.dark .nav-count {
+  background: #1e2e2e;
+  color: #e2ece9;
+}
+html.dark .quiet-note {
+  color: #8ca3a5;
+}
+html.dark .quiet-note strong {
+  color: #c9dbd8;
+}
+html.dark .profile {
+  border-top-color: var(--line);
+}
+html.dark .avatar {
+  border-color: #2b3d3d;
+  background: #1f3030;
+  color: #9bc6b8;
+}
+html.dark .icon-button {
+  color: #9cb1b3;
+}
+html.dark .icon-button:hover {
+  background: #1f2f2f;
+  color: #e2ece9;
+}
+html.dark .button {
+  border-color: #2b3d3d;
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark .button:hover {
+  background: #213232;
+}
+html.dark .button.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: #0b1c19;
+  font-weight: 650;
+}
+html.dark .button.primary:hover {
+  background: #229988;
+}
+html.dark .button.subtle {
+  background: transparent;
+  color: #9cb1b3;
+  border-color: #2b3d3d;
+}
+html.dark .button.subtle:hover {
+  background: #192727;
+  color: #e2ece9;
+}
+html.dark .scope-controls label {
+  border-color: #2b3d3d;
+  background: #182424;
+  color: #9cb1b3;
+}
+html.dark .scope-controls select {
+  color: #e2ece9;
+}
+html.dark .metric {
+  background: #141f1f;
+  border-color: var(--line);
+}
+html.dark .metric > strong {
+  color: #f0f6f5;
+}
+html.dark .metric.featured {
+  background: #154c44;
+  border: 1px solid #1f675d;
+}
+html.dark .metric.featured > strong {
+  color: #ffffff;
+}
+html.dark .metric-icon.mint {
+  background: #193427;
+  color: #62cb96;
+}
+html.dark .metric-icon.blue {
+  background: #1e283b;
+  color: #8fa6d8;
+}
+html.dark .panel {
+  background: #141f1f;
+  border-color: var(--line);
+}
+html.dark .donut > div {
+  background: #141f1f;
+}
+html.dark .donut strong {
+  color: #f0f6f5;
+}
+html.dark .category-row {
+  border-bottom-color: #1c2a2a;
+}
+html.dark .category-row:hover {
+  background: #192727;
+}
+html.dark .category-row strong {
+  color: #e2ece9;
+}
+html.dark .category-pill {
+  background: #1a2929;
+  color: #9cb1b3;
+}
+html.dark .plan-card {
+  background: #16241e;
+  border-color: #23372e;
+}
+html.dark .plan-card > .section-heading {
+  color: #92c5a2;
+}
+html.dark .plan-card .progress-track {
+  background: #23372e;
+}
+html.dark .progress-track > div {
+  background: #3fa169;
+}
+html.dark .progress-track > div.over {
+  background: #d49348;
+}
+html.dark .plan-action {
+  background: #1b2c24;
+  border-color: #2b4337;
+  color: #a1d1b1;
+}
+html.dark .plan-action:hover {
+  background: #22372d;
+}
+html.dark .review-banner {
+  background: #252216;
+  border-color: #3c3621;
+}
+html.dark .review-icon {
+  color: #e5bd6a;
+  background: #3c3520;
+}
+html.dark .review-banner strong {
+  color: #e5cd96;
+}
+html.dark .review-link {
+  color: #dec285;
+}
+html.dark .transaction-row {
+  border-top-color: #1c2a2a;
+}
+html.dark .transaction-row:hover {
+  background: #192727;
+}
+html.dark .transaction-row strong {
+  color: #e2ece9;
+}
+html.dark .merchant-icon {
+  background: #1d2c27;
+  color: #8bb39f;
+}
+html.dark .transaction-row:nth-child(3n + 2) .merchant-icon {
+  background: #2d261c;
+  color: #cfaf83;
+}
+html.dark .merchant-icon.income {
+  background: #1a3327 !important;
+  color: #58c495 !important;
+}
+html.dark .income-text {
+  color: #43c292;
+}
+html.dark .transaction-amount .needs-review {
+  color: #dfb256;
+}
+html.dark .panel-footer {
+  background: #121c1c;
+  border-top-color: var(--line);
+}
+html.dark .search-field {
+  border-color: #293d3d;
+  background: #182424;
+  color: #8fa5a7;
+}
+html.dark .search-field input {
+  color: #e2ece9;
+}
+html.dark select {
+  border-color: #293d3d;
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark select option {
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark .empty h3 {
+  color: #e2ece9;
+}
+html.dark .demo-banner {
+  border-color: #1f3747;
+  background: #132430;
+  color: #8ab6cc;
+}
+html.dark .error-banner {
+  background: #2d1c15;
+  border-color: #4a2d21;
+  color: #e09869;
+}
+html.dark .tag {
+  background: #332a17;
+  color: #e0be77;
+}
+html.dark .review-card {
+  border-bottom-color: var(--line);
+}
+html.dark .review-card h3 {
+  color: #e2ece9;
+}
+html.dark dialog {
+  border-color: #293d3d;
+  color: #e2ece9;
+  background: #141f1f;
+  box-shadow: 0 24px 100px #00000088;
+}
+html.dark dialog::backdrop {
+  background: #00000088;
+}
+html.dark .detail-review {
+  background: #252216;
+}
+html.dark #target-amount {
+  border-color: #293d3d;
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark .skip-link {
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark .auth-shell {
+  background: #0d1515;
+}
+html.dark .lang-toggle {
+  color: #c0d3d5;
+}
+html.dark .lang-toggle .lang-label {
+  color: #e2ece9;
+}
+html.dark .auth-toolbar .icon-button {
+  color: #c0d3d5;
+  background: #141f1f;
+  border-color: #2b3d3d;
+}
+html.dark .auth-toolbar .icon-button:hover {
+  background: #1f2f2f;
+  color: #ffffff;
+}
+html.dark .auth-card {
+  background: #141f1f;
+  border-color: #243535;
+}
+html.dark .auth-card h1 {
+  color: #e2ece9;
+}
+html.dark .google-signin {
+  border-color: #2b3d3d;
+  background: #182424;
+  color: #e2ece9;
+}
+html.dark .google-signin:hover {
+  background: #213232;
+}
+html.dark .auth-footnote {
+  border-top-color: #223333;
+}
+html.dark .auth-notice {
+  background: #2d1c15;
+  color: #e09869;
+}
+html.dark .toast {
+  background: #1b3832;
+  box-shadow: 0 8px 25px #00000066;
+}
+@media (max-width: 700px) {
+  html.dark .sidebar {
+    background: #141f1ff5;
+    border-top-color: var(--line);
+  }
+  html.dark .nav-item.active {
+    background: #19342e;
+  }
+}
