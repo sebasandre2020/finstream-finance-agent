@@ -35,9 +35,9 @@ export function mergeTransactions(
   );
 }
 
-export function money(amount: number, currency: string) {
+export function money(amount: number, currency: string, locale?: string) {
   try {
-    return new Intl.NumberFormat(undefined, {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
     }).format(amount);

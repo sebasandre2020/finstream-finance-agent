@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Leaf, ShieldCheck } from "lucide-react";
+import { Languages, Leaf, Moon, ShieldCheck, Sun } from "lucide-react";
 import Dashboard from "../App";
+import { usePreferences } from "../hooks/usePreferences";
 
 export interface UserProfile {
   id: string;
@@ -8,7 +9,9 @@ export interface UserProfile {
   email: string;
   last_synced_at: string | null;
 }
+
 export default function AuthenticatedApp() {
+  const { lang, toggleLang, theme, toggleTheme, t } = usePreferences();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -18,8 +21,9 @@ export default function AuthenticatedApp() {
       "google_auth_error",
     );
     if (problem) history.replaceState(null, "", location.pathname);
-    return problem ? "Google sign-in wasn’t completed. Please try again." : "";
+    return problem ? t.googleAuthError : "";
   });
+
   async function checkSession() {
     try {
       const response = await fetch("/api/v1/auth/me", { cache: "no-store" });
@@ -29,11 +33,12 @@ export default function AuthenticatedApp() {
       } else if (response.status === 401) setUser(null);
       else throw new Error();
     } catch {
-      setError("We couldn’t check your session. Please try again.");
+      setError(t.sessionCheckFailed);
     } finally {
       setLoading(false);
     }
   }
+
   useEffect(() => {
     // Retire the old frontend bearer token, which is no longer accepted.
     try {
@@ -52,7 +57,7 @@ export default function AuthenticatedApp() {
     const expired = () => {
       setUser(null);
       setDemo(false);
-      setError("Your session ended. Sign in again to continue.");
+      setError(t.sessionEnded);
     };
     const onFocus = () => void checkSession();
     window.addEventListener("finstream:unauthorized", expired);
@@ -63,7 +68,9 @@ export default function AuthenticatedApp() {
       window.removeEventListener("focus", onFocus);
       clearInterval(timer);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t.sessionEnded]);
+
   async function logout() {
     try {
       const response = await fetch("/api/v1/auth/logout", { method: "POST" });
@@ -72,15 +79,17 @@ export default function AuthenticatedApp() {
       setDemo(false);
       setError("");
     } catch {
-      setError("Sign-out failed. Please try again.");
+      setError(t.signOutFailed);
     }
   }
+
   if (loading)
     return (
       <div className="auth-shell">
-        <p role="status">Checking your session…</p>
+        <p role="status">{t.checkingSession}</p>
       </div>
     );
+
   if (user || demo)
     return (
       <>
@@ -97,24 +106,43 @@ export default function AuthenticatedApp() {
         />
       </>
     );
+
   return (
     <main className="auth-shell">
+      <div className="auth-toolbar">
+        <button
+          type="button"
+          className="icon-button lang-toggle"
+          aria-label={lang === "en" ? t.switchToSpanish : t.switchToEnglish}
+          title={lang === "en" ? t.switchToSpanish : t.switchToEnglish}
+          onClick={toggleLang}
+        >
+          <Languages size={17} />
+          <span className="lang-label">{lang === "en" ? "ES" : "EN"}</span>
+        </button>
+        <button
+          type="button"
+          className="icon-button theme-toggle"
+          aria-label={theme === "dark" ? t.switchToLight : t.switchToDark}
+          title={theme === "dark" ? t.switchToLight : t.switchToDark}
+          onClick={toggleTheme}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </div>
       <section className="auth-card">
         <div className="brand">
           <span className="brand-mark">
             <Leaf size={23} />
           </span>
-          finstream.
+          finstream{t.brandDot}
         </div>
         <h1>
-          Your money.
+          {t.authTitlePart1}
           <br />
-          Your own space.
+          {t.authTitlePart2}
         </h1>
-        <p>
-          Sign in to see your spending across accounts and bring your banking
-          notifications together.
-        </p>
+        <p>{t.authSubtitle}</p>
         <a
           className="google-signin"
           href="/api/v1/auth/google/login"
@@ -141,31 +169,24 @@ export default function AuthenticatedApp() {
               d="M12 5.9c1.5 0 2.8.5 3.8 1.5l2.9-2.9A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.9 5.4L6.4 10c.8-2.3 3-4.1 5.6-4.1Z"
             />
           </svg>
-          Sign in with Google
+          {t.signInGoogle}
         </a>
-        <p className="auth-disclosure">
-          With your permission, FinStream reads Gmail banking notifications to
-          import transactions. It cannot send or delete your emails.
-        </p>
-        {configured === false && (
-          <p role="alert">
-            Google sign-in needs to be configured by the administrator.
-          </p>
-        )}
+        <p className="auth-disclosure">{t.authDisclosure}</p>
+        {configured === false && <p role="alert">{t.googleAdminConfig}</p>}
         {error && (
           <div role="alert">
             <p>{error}</p>
             <button className="button" onClick={() => void checkSession()}>
-              Try again
+              {t.tryAgain}
             </button>
           </div>
         )}
         <button className="text-button" onClick={() => setDemo(true)}>
-          Explore a demo
+          {t.exploreDemo}
         </button>
         <div className="auth-footnote">
           <ShieldCheck size={18} />
-          Your financial activity is only available in your signed-in account.
+          {t.authFootnote}
         </div>
       </section>
     </main>
