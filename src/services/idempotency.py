@@ -49,5 +49,26 @@ class IdempotencyService:
             )
             return True
 
+    async def is_message_processed(self, user_id: object, msg_id: str) -> bool:
+        """Checks if a Gmail message ID has already been parsed or evaluated."""
+        try:
+            client = await self.get_client()
+            val = await client.get(f"gmail:msg:{user_id}:{msg_id}")
+            return bool(val)
+        except Exception as e:
+            logger.debug("Redis message check skipped (%s)", e)
+            return False
+
+    async def mark_message_processed(
+        self, user_id: object, msg_id: str, ttl: int = 60 * 86400
+    ) -> None:
+        """Marks a Gmail message ID as processed with a TTL."""
+        try:
+            client = await self.get_client()
+            await client.set(f"gmail:msg:{user_id}:{msg_id}", "1", ex=ttl)
+        except Exception as e:
+            logger.debug("Redis mark message failed (%s)", e)
+
 
 idempotency_service = IdempotencyService()
+

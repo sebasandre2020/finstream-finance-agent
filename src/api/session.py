@@ -39,7 +39,42 @@ async def require_user(
 
 
 def require_same_origin(request: Request) -> None:
-    expected = urlsplit(settings.FRONTEND_URL)
-    origin = f"{expected.scheme}://{expected.netloc}"
-    if request.headers.get("origin") != origin:
+    origin = request.headers.get("origin")
+    if not origin:
+        referer = request.headers.get("referer")
+        if referer:
+            ref_split = urlsplit(referer)
+            origin = f"{ref_split.scheme}://{ref_split.netloc}"
+
+    if not origin:
         raise HTTPException(403, "Invalid request origin.")
+
+    origin_split = urlsplit(origin)
+    origin_netloc = origin_split.netloc.lower()
+
+    # 1. Allowed if origin netloc matches the configured FRONTEND_URL
+    expected = urlsplit(settings.FRONTEND_URL)
+    if origin_netloc == expected.netloc.lower():
+        return
+
+    # 2. Allowed if origin netloc matches the request's actual Host / X-Forwarded-Host
+    req_host = (
+        request.headers.get("x-forwarded-host")
+        or request.headers.get("host")
+        or ""
+    ).lower()
+    if req_host and origin_netloc == req_host:
+        return
+
+    # 3. Allowed if local development origins
+    if origin_netloc in (
+        "localhost",
+        "127.0.0.1",
+        "localhost:3000",
+        "127.0.0.1:3000",
+        "localhost:8000",
+        "127.0.0.1:8000",
+    ):
+        return
+
+    raise HTTPException(403, "Invalid request origin.")
