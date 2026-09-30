@@ -122,14 +122,21 @@ jobs:
           chmod 600 ~/.ssh/oracle_key
           ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
 
+          echo "🔧 Ensuring proper ownership on remote directory..."
+          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USER@$ORACLE_HOST" "mkdir -p /home/ubuntu/app && sudo chown -R $ORACLE_USER:$ORACLE_USER /home/ubuntu/app 2>/dev/null || true"
+
           echo "🚀 Syncing application code to Oracle Cloud VM..."
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='.env' \
             --exclude='node_modules' \
             --exclude='frontend/node_modules' \
+            --exclude='frontend/dist' \
             --exclude='__pycache__' \
+            --exclude='*.pyc' \
             --exclude='.pytest_cache' \
+            --exclude='.ruff_cache' \
+            --exclude='.DS_Store' \
             -e "ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no" \
             ./ "$ORACLE_USER@$ORACLE_HOST:/home/ubuntu/app/"
 
@@ -144,9 +151,20 @@ jobs:
             # Run database migrations
             docker compose exec -T api alembic upgrade head || true
             
-            # Health check probe
+            # Health check probe with retry loop
             echo '🏥 Verifying service liveness and readiness...'
-            sleep 5
+            for i in \$(seq 1 12); do
+              if curl -s -f http://localhost:8000/health > /dev/null 2>&1; then
+                echo '✅ API health check passed!'
+                break
+              fi
+              echo \"Waiting for API service to become healthy (attempt \$i/12)...\"
+              sleep 5
+            done
             curl -f http://localhost:8000/health || (docker logs finance_api --tail 50 && exit 1)
+            
+            # Clean permissions for future deployments
+            sudo chown -R $ORACLE_USER:$ORACLE_USER /home/ubuntu/app 2>/dev/null || true
             echo '✅ Deployment to Oracle Cloud Always Free completed successfully!'
           "
+
