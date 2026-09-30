@@ -49,6 +49,21 @@ Users maintaining checking, credit, and savings accounts across multiple banking
 
 ---
 
+## 🌐 Live 24/7 Cloud Deployment ($0.00 USD Always Free)
+
+The complete multi-container stack runs 24/7 in production on an **Oracle Cloud Infrastructure (OCI) Always Free Ampere A1 VM** (4 OCPU ARM64, 24 GB RAM, 50 GB NVMe SSD) with automated SSL edge routing via Cloudflare Tunnel:
+
+* **Production Web App (Cloudflare HTTPS):** [https://institutions-done-timing-induction.trycloudflare.com](https://institutions-done-timing-induction.trycloudflare.com)
+* **Direct Cloud Address:** [http://161.153.9.52:3000](http://161.153.9.52:3000)
+* **Interactive API Documentation (Swagger / OpenAPI):** [http://161.153.9.52:3000/docs](http://161.153.9.52:3000/docs)
+* **Telemetry & LLM Tracing (Langfuse):** [http://161.153.9.52:3001](http://161.153.9.52:3001)
+
+### 🌿 Dual-Branch Repository Strategy
+* **`main` (Active):** Production 24/7 Always Free deployment on Oracle Cloud Infrastructure + Docker Compose + automated GitHub Actions continuous deployment pipeline.
+* **`OriginalLocalSolution`:** Preserves the original local simulation and AWS enterprise architecture (ECS Fargate + MSK + RDS pgvector) as originally planned.
+
+---
+
 ## 🏗️ Architectural Highlights
 
 | Dimension | Enterprise Specification |
@@ -57,8 +72,9 @@ Users maintaining checking, credit, and savings accounts across multiple banking
 | **End-to-End Processing SLA** | `< 1200ms` (Webhook ingestion -> Agent resolution -> SSE Client Delivery) |
 | **Idempotency Guarantee** | Redis distributed lock + PostgreSQL unique hash key `(account_id, ext_transaction_id)` |
 | **AI Reliability** | LangGraph reflection loop with deterministic guardrails (no invalid categories) |
-| **Observability** | Full trace tracking, token usage, and latency attribution via Langfuse + Prometheus |
-| **Deployment Target** | AWS ECS Fargate, AWS RDS PostgreSQL 16 (pgvector), AWS Managed Streaming for Kafka (MSK) |
+| **Observability** | Full trace tracking, token usage, and latency attribution via Langfuse + OpenTelemetry |
+| **Deployment Target** | 24/7 Oracle Cloud Always Free (Ampere ARM64 4 OCPU, 24 GB RAM) & AWS ECS Fargate compatible |
+| **CI/CD Pipeline** | Automated GitHub Actions with PyTest (45 tests), Linters, and SSH/rsync continuous deployment |
 
 ---
 

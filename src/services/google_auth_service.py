@@ -1,5 +1,6 @@
 """Google OAuth 2.0 and Gmail REST API Service for Automated Banking Ingestion."""
 
+import asyncio
 import base64
 import logging
 import re
@@ -199,36 +200,25 @@ class GoogleAuthService:
 
         async with httpx.AsyncClient(timeout=25.0) as client:
             messages_meta: list[dict[str, Any]] = []
-            page_token = None
-            pages_fetched = 0
 
-            # Fetch up to 2 pages (up to 200 emails)
-            while pages_fetched < 2:
-                search_params = {
-                    "q": GMAIL_BANK_QUERY,
-                    "maxResults": min(max_results, 100),
-                }
-                if page_token:
-                    search_params["pageToken"] = page_token
-
-                list_resp = await client.get(
-                    GMAIL_MESSAGES_URL, headers=headers, params=search_params
+            # Fetch 1 page (up to max_results, default 30) to prevent quota exhaustion
+            search_params = {
+                "q": GMAIL_BANK_QUERY,
+                "maxResults": min(max_results, 30),
+            }
+            list_resp = await client.get(
+                GMAIL_MESSAGES_URL, headers=headers, params=search_params
+            )
+            if list_resp.status_code != 200:
+                logger.error(
+                    "Gmail messages list failed (%d): %s",
+                    list_resp.status_code,
+                    list_resp.text,
                 )
-                if list_resp.status_code != 200:
-                    logger.error(
-                        "Gmail messages list failed (%d): %s",
-                        list_resp.status_code,
-                        list_resp.text,
-                    )
-                    raise ValueError("Gmail access failed; reconnect Google")
+                raise ValueError("Gmail access failed; reconnect Google")
 
-                data = list_resp.json()
-                page_msgs = data.get("messages", [])
-                messages_meta.extend(page_msgs)
-                pages_fetched += 1
-                page_token = data.get("nextPageToken")
-                if not page_token or not page_msgs:
-                    break
+            data = list_resp.json()
+            messages_meta = data.get("messages", [])
 
             logger.info(
                 "Found %d candidate banking messages in Gmail.", len(messages_meta)
@@ -244,12 +234,46 @@ class GoogleAuthService:
                 if not msg_id:
                     continue
 
-                msg_resp = await client.get(
-                    f"{GMAIL_MESSAGES_URL}/{msg_id}",
-                    headers=headers,
-                    params={"format": "full"},
-                )
-                if msg_resp.status_code != 200:
+                if await idempotency_service.is_message_processed(user_id, msg_id):
+                    continue
+
+                # Rate limiting pacing: 100ms pause prevents exceeding Google's 250 units/sec quota
+                await asyncio.sleep(0.1)
+
+                msg_resp = None
+                for attempt in range(3):
+                    try:
+                        msg_resp = await client.get(
+                            f"{GMAIL_MESSAGES_URL}/{msg_id}",
+                            headers=headers,
+                            params={"format": "full"},
+                        )
+                        if msg_resp.status_code == 200:
+                            break
+                        if msg_resp.status_code in (429, 403) and (
+                            "rateLimitExceeded" in msg_resp.text
+                            or "userRateLimitExceeded" in msg_resp.text
+                            or "Quota exceeded" in msg_resp.text
+                        ):
+                            wait_sec = 2.0 * (attempt + 1)
+                            logger.warning(
+                                "Gmail rate limit hit for message %s. Backing off for %.1fs (attempt %d/3)...",
+                                msg_id,
+                                wait_sec,
+                                attempt + 1,
+                            )
+                            await asyncio.sleep(wait_sec)
+                        else:
+                            break
+                    except Exception as net_err:
+                        logger.warning(
+                            "Network error fetching Gmail message %s: %s",
+                            msg_id,
+                            net_err,
+                        )
+                        break
+
+                if not msg_resp or msg_resp.status_code != 200:
                     continue
 
                 inspected_count += 1
@@ -272,6 +296,7 @@ class GoogleAuthService:
                 body = cls._extract_body_from_payload(payload)
 
                 if not body:
+                    await idempotency_service.mark_message_processed(user_id, msg_id)
                     continue
 
                 parsed = await email_parser_service.parse_email(
@@ -283,6 +308,7 @@ class GoogleAuthService:
                 )
 
                 if not parsed.is_transaction or not parsed.amount:
+                    await idempotency_service.mark_message_processed(user_id, msg_id)
                     continue
 
                 found_count += 1
@@ -408,6 +434,9 @@ class GoogleAuthService:
                         )
                     )
                     if duplicate:
+                        await idempotency_service.mark_message_processed(
+                            user_id, msg_id
+                        )
                         continue
                 acct_str = str(card_account_id)
 
@@ -421,6 +450,7 @@ class GoogleAuthService:
                         "Transaction %s is queued for processing. Skipping duplicate.",
                         parsed.ext_transaction_id,
                     )
+                    await idempotency_service.mark_message_processed(user_id, msg_id)
                     continue
 
                 tx_payload = TransactionWebhookPayload(
@@ -476,6 +506,7 @@ class GoogleAuthService:
                             "transaction_time": parsed.transaction_time.isoformat(),
                         }
                     )
+                    await idempotency_service.mark_message_processed(user_id, msg_id)
                 else:
                     redis = await idempotency_service.get_client()
                     await redis.delete(

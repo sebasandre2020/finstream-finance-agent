@@ -52,21 +52,30 @@ async def google_status():
 
 
 @router.get("/google/login")
-async def google_login():
+async def google_login(request: Request):
     if not GoogleAuthService.is_configured():
         raise HTTPException(503, "Google sign-in is not configured on this server.")
     state = secrets.token_urlsafe(32)
     redis = await idempotency_service.get_client()
-    await redis.set("oauth:state:" + token_digest(state), "pending", ex=600)
+
+    # Capture the client's actual origin so callback redirects back to the caller (e.g. cloud IP, tunnel, or domain)
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    origin = (
+        f"{proto}://{host}".rstrip("/") if host else settings.FRONTEND_URL.rstrip("/")
+    )
+
+    await redis.set("oauth:state:" + token_digest(state), origin, ex=600)
     response = RedirectResponse(
         GoogleAuthService.get_authorization_url(state), status_code=303
     )
+    is_secure = origin.startswith("https://") or secure_cookie()
     response.set_cookie(
         STATE_COOKIE,
         state,
         max_age=600,
         httponly=True,
-        secure=secure_cookie(),
+        secure=is_secure,
         samesite="lax",
         path="/api/v1/auth",
     )
@@ -82,10 +91,34 @@ async def google_callback(
     error: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
+    stored_origin = None
+    if state:
+        redis = await idempotency_service.get_client()
+        raw = await redis.getdel("oauth:state:" + token_digest(state))
+        if raw:
+            stored_origin = raw.decode("utf-8") if isinstance(raw, bytes) else str(raw)
+
     def redirect(problem=None):
+        if stored_origin and stored_origin != "pending":
+            base_url = stored_origin.rstrip("/")
+        else:
+            host = request.headers.get("x-forwarded-host") or request.headers.get(
+                "host"
+            )
+            proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+            base_url = (
+                f"{proto}://{host}".rstrip("/")
+                if host
+                else settings.FRONTEND_URL.rstrip("/")
+            )
+
+        target = (
+            f"{base_url}/"
+            if not problem
+            else f"{base_url}/?google_auth_error={problem}"
+        )
         response = RedirectResponse(
-            settings.FRONTEND_URL.rstrip("/")
-            + ("/?google_auth_error=" + problem if problem else "/"),
+            target,
             status_code=303,
         )
         response.delete_cookie(STATE_COOKIE, path="/api/v1/auth")
@@ -96,8 +129,7 @@ async def google_callback(
     expected = request.cookies.get(STATE_COOKIE, "")
     if not state or not expected or not secrets.compare_digest(state, expected):
         return redirect("invalid_state")
-    redis = await idempotency_service.get_client()
-    if not await redis.getdel("oauth:state:" + token_digest(state)):
+    if not stored_origin:
         return redirect("expired_state")
     if error or not code:
         return redirect("cancelled")
@@ -146,12 +178,17 @@ async def google_callback(
         user.session_expires_at = now + timedelta(days=7)
         await db.commit()
         response = redirect()
+        is_secure = (
+            stored_origin.startswith("https://")
+            if (stored_origin and stored_origin != "pending")
+            else secure_cookie()
+        )
         response.set_cookie(
             SESSION_COOKIE,
             session_token,
             max_age=7 * 86400,
             httponly=True,
-            secure=secure_cookie(),
+            secure=is_secure,
             samesite="lax",
             path="/",
         )

@@ -97,49 +97,56 @@ jobs:
           pip install -r requirements.txt || true
           pytest tests/ -v --maxfail=1
 
-  build-and-deploy:
-    name: Container Build & AWS ECS Deployment
+  cloud-deploy:
+    name: Automatic Continuous Deployment to Oracle Cloud (24/7 Always Free)
     needs: automated-tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsECRDeployRole
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, Tag, and Push API Container
+      - name: Deploy to Oracle Cloud Always Free VM
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: finance-api
-          IMAGE_TAG: ${{ github.sha }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
         run: |
-          docker build -f Dockerfile.api -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          docker push $REGISTRY/$REPOSITORY:latest
+          if [ -z "$ORACLE_HOST" ] || [ -z "$ORACLE_SSH_KEY" ]; then
+            echo "Skipping deployment: Oracle Cloud secrets not configured"
+            exit 0
+          fi
 
-      - name: Build, Tag, and Push Worker Container
-        env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: finance-worker
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -f Dockerfile.worker -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:latest .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-          docker push $REGISTRY/$REPOSITORY:latest
+          mkdir -p ~/.ssh
+          echo "$ORACLE_SSH_KEY" > ~/.ssh/oracle_key
+          chmod 600 ~/.ssh/oracle_key
+          ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
 
-      - name: Deploy to Amazon ECS (Zero Downtime Rolling Update)
-        run: |
-          aws ecs update-service --cluster finance-prod-cluster --service finance-api-service --force-new-deployment
-          aws ecs update-service --cluster finance-prod-cluster --service finance-worker-service --force-new-deployment
+          echo "🚀 Syncing application code to Oracle Cloud VM..."
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='node_modules' \
+            --exclude='frontend/node_modules' \
+            --exclude='__pycache__' \
+            --exclude='.pytest_cache' \
+            -e "ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no" \
+            ./ "$ORACLE_USER@$ORACLE_HOST:/home/ubuntu/app/"
+
+          echo "🔄 Rebuilding and restarting services..."
+          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=no "$ORACLE_USER@$ORACLE_HOST" "
+            set -e
+            cd /home/ubuntu/app
+            
+            # Rebuild and restart API, Worker, and Frontend
+            docker compose up -d --build api worker frontend
+            
+            # Run database migrations
+            docker compose exec -T api alembic upgrade head || true
+            
+            # Health check probe
+            echo '🏥 Verifying service liveness and readiness...'
+            sleep 5
+            curl -f http://localhost:8000/health || (docker logs finance_api --tail 50 && exit 1)
+            echo '✅ Deployment to Oracle Cloud Always Free completed successfully!'
+          "

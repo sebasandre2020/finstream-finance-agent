@@ -142,7 +142,7 @@ class GmailRealtimePoller:
                         # Coordinate the polling interval across API processes.
                         redis = await idempotency_service.get_client()
                         if not await redis.set(
-                            f"gmail:poll:{user_id}", "1", nx=True, ex=60
+                            f"gmail:poll:{user_id}", "1", nx=True, ex=300
                         ):
                             continue
                         await self.sync_user_now(user_id)
@@ -152,7 +152,7 @@ class GmailRealtimePoller:
                         )
             except Exception:
                 logger.warning("Gmail sync is temporarily unavailable")
-            await asyncio.sleep(60)
+            await asyncio.sleep(300)
 
 
 gmail_realtime_poller = GmailRealtimePoller()

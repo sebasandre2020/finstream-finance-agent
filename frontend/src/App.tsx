@@ -67,7 +67,7 @@ export default function App({
   const transactions = demo ? samples : live.transactions;
   const [view, setView] = useState<View>("Overview");
   const [account, setAccount] = useState("all");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState("");
   const [period, setPeriod] = useState("month");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -95,10 +95,31 @@ export default function App({
   const detailDialog = useRef<HTMLDialogElement>(null);
   const targetDialog = useRef<HTMLDialogElement>(null);
   const helpDialog = useRef<HTMLDialogElement>(null);
-  const currencies = [...new Set(transactions.map((tx) => tx.currency))].sort();
-  const activeCurrency = currencies.includes(currency)
-    ? currency
-    : currencies[0] || "USD";
+  const currencyCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tx of transactions) {
+      counts.set(tx.currency, (counts.get(tx.currency) || 0) + 1);
+    }
+    return counts;
+  }, [transactions]);
+  const dominantCurrency = useMemo(() => {
+    if (!transactions.length) return "USD";
+    const entries = [...currencyCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const usdCount = currencyCounts.get("USD") || 0;
+    if (entries[0] && entries[0][1] > usdCount) {
+      return entries[0][0];
+    }
+    if (currencyCounts.has("USD")) {
+      return "USD";
+    }
+    return entries[0]?.[0] || "USD";
+  }, [currencyCounts, transactions.length]);
+  const currencies = useMemo(
+    () => [...new Set(transactions.map((tx) => tx.currency))].sort(),
+    [transactions],
+  );
+  const activeCurrency =
+    currency && currencies.includes(currency) ? currency : dominantCurrency;
   const targetKey = `${demo ? "demo:" : ""}${activeCurrency}`;
   const target =
     Number(targets[targetKey]) > 0 ? Number(targets[targetKey]) : 0;
@@ -484,7 +505,12 @@ export default function App({
                   }}
                 >
                   {(currencies.length ? currencies : ["USD"]).map((code) => (
-                    <option key={code}>{code}</option>
+                    <option key={code} value={code}>
+                      {code}
+                      {currencyCounts.get(code)
+                        ? ` (${currencyCounts.get(code)})`
+                        : ""}
+                    </option>
                   ))}
                 </select>
               </label>

@@ -1,0 +1,28 @@
+# Multi-Account Finance Agent - Caddy Automatic Reverse Proxy & SSL
+# Replace 'yourdomain.com' with your actual domain name or dynamic DNS.
+# Caddy automatically provisions and renews Let's Encrypt TLS certificates.
+
+{
+    email {$ACME_EMAIL:admin@example.com}
+}
+
+{$DOMAIN:localhost} {
+    # Reverse proxy to the unified frontend (which already handles / and proxies /api/ + /docs)
+    reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Enable gzip & zstd compression
+    encode gzip zstd
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
