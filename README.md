@@ -82,9 +82,11 @@ The complete multi-container stack runs 24/7 in production on an **Oracle Cloud 
 
 Navigate the enterprise technical specifications:
 
+* 🖥️ **[Visual Feature Walkthrough & Screenshots (features-walkthrough.md)](./docs/features-walkthrough.md):** End-to-end visual walkthrough with browser screenshots covering Dashboard, Activity, Spending Plan, Anomalies, Dark Mode, Spanish i18n, and Mobile views.
 * 📐 **[System Architecture (Architecture.md)](./Architecture.md):** Complete component topology, cloud network boundaries, caching layers, and failure recovery modes.
 * 🧩 **[Class & Entity Design (Class.md)](./Class.md):** OOP patterns (Strategy, Factory, Adapter for LLM providers), Pydantic schemas, and SQLAlchemy / Timescale data models.
 * 📚 **[Documentation Directory (Index.md)](./Index.md):** Master index linking to granular API contracts and worker deep dives.
+* 🔐 **[Google Sign-In & Security Isolation (google-sign-in.md)](./docs/google-sign-in.md):** OAuth 2.0 configuration, session isolation, and token encryption specifications.
 * 🔌 **Granular API Specifications:**
   * [POST /api/v1/webhooks/transactions](./docs/api/webhooks_ingest.md)
   * [GET /api/v1/transactions](./docs/api/transactions_api.md)

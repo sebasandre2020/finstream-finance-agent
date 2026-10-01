@@ -6,6 +6,8 @@ Welcome to the technical documentation registry for `multi-account-finance-agent
 
 ## 🏛️ System Core Specifications
 * **[README.md](./README.md)** — Project elevator pitch, problem statement, key metrics, and local quickstart.
+* **[Visual Feature Walkthrough & Screenshots](./docs/features-walkthrough.md)** — Complete visual guide showcasing all 12 key features captured from the browser (Dashboard, Activity Feed, Anomaly Review, Dark Mode, Spanish i18n, Mobile Responsive).
+* **[Google Sign-In & Security Isolation](./docs/google-sign-in.md)** — OAuth 2.0 configuration, session isolation, and token encryption specifications.
 * **[Architecture.md](./Architecture.md)** — End-to-end component topology, AWS VPC/ECS Fargate layout, idempotency flow, and resilience modes.
 * **[Class.md](./Class.md)** — Domain entities, OOP design patterns (Strategy, Adapter, Factory), and PostgreSQL + pgvector DDL.
 * **[Operations.md](./Operations.md)** — Day-2 operational runbooks, local Docker compose environment, and Langfuse tracing.
