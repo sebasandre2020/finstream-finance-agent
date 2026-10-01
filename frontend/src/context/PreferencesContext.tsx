@@ -60,6 +60,40 @@ export function PreferencesProvider({
     [lang],
   );
 
+  const formatTime = useCallback(
+    (
+      date: Date | string | number,
+      options?: Intl.DateTimeFormatOptions,
+    ): string => {
+      const d = typeof date === "object" ? date : new Date(date);
+      return d.toLocaleTimeString(
+        lang === "es" ? "es-ES" : "en-US",
+        options ?? { hour: "numeric", minute: "2-digit" },
+      );
+    },
+    [lang],
+  );
+
+  const formatDateTime = useCallback(
+    (
+      date: Date | string | number,
+      options?: Intl.DateTimeFormatOptions,
+    ): string => {
+      const d = typeof date === "object" ? date : new Date(date);
+      return d.toLocaleString(
+        lang === "es" ? "es-ES" : "en-US",
+        options ?? {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        },
+      );
+    },
+    [lang],
+  );
+
   const formatMoney = useCallback(
     (amount: number, currency: string): string => {
       return money(amount, currency, lang === "es" ? "es-ES" : undefined);
@@ -76,6 +110,8 @@ export function PreferencesProvider({
     toggleTheme,
     t: translations[lang],
     formatDate,
+    formatTime,
+    formatDateTime,
     formatMoney,
   };
 

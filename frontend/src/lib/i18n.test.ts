@@ -51,4 +51,12 @@ describe("i18n localization", () => {
     const esHeadings = Object.keys(translations.es.headings).sort();
     expect(esHeadings).toEqual(enHeadings);
   });
+
+  it("provides date and time translations in both English and Spanish", () => {
+    expect(translations.en.dateTime).toBe("Date & time");
+    expect(translations.es.dateTime).toBe("Fecha y hora");
+    expect(Object.keys(translations.en).sort()).toEqual(
+      Object.keys(translations.es).sort(),
+    );
+  });
 });
