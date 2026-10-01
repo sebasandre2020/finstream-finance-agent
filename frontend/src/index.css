@@ -727,10 +727,22 @@ main {
   text-align: center;
 }
 .transaction-date {
-  width: 115px;
+  width: 120px;
   text-align: right;
   font-size: 12px;
   color: #536b70;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+.transaction-date-day {
+  font-weight: 500;
+}
+.transaction-date-time {
+  font-size: 11px;
 }
 .transaction-amount {
   text-align: right;
@@ -1128,7 +1140,7 @@ dd {
     font-size: 28px;
   }
   .transaction-date {
-    width: 94px;
+    width: 100px;
   }
   .category-pill {
     min-width: 70px;

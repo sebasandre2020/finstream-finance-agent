@@ -15,6 +15,14 @@ export interface PreferencesContextValue {
     date: Date | string | number,
     options?: Intl.DateTimeFormatOptions,
   ) => string;
+  formatTime: (
+    date: Date | string | number,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string;
+  formatDateTime: (
+    date: Date | string | number,
+    options?: Intl.DateTimeFormatOptions,
+  ) => string;
   formatMoney: (amount: number, currency: string) => string;
 }
 
@@ -28,6 +36,22 @@ export const defaultPreferencesValue: PreferencesContextValue = {
   t: translations.en,
   formatDate: (date, options) =>
     new Date(date).toLocaleDateString("en-US", options),
+  formatTime: (date, options) =>
+    new Date(date).toLocaleTimeString(
+      "en-US",
+      options ?? { hour: "numeric", minute: "2-digit" },
+    ),
+  formatDateTime: (date, options) =>
+    new Date(date).toLocaleString(
+      "en-US",
+      options ?? {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      },
+    ),
   formatMoney: (amount, currency) => money(amount, currency),
 };
 

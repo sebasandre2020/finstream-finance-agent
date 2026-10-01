@@ -67,8 +67,17 @@ export default function App({
   onLogout: () => Promise<void>;
   onExitDemo: () => void;
 }) {
-  const { lang, toggleLang, theme, toggleTheme, t, formatDate, formatMoney } =
-    usePreferences();
+  const {
+    lang,
+    toggleLang,
+    theme,
+    toggleTheme,
+    t,
+    formatDate,
+    formatTime,
+    formatDateTime,
+    formatMoney,
+  } = usePreferences();
   const [demo, setDemo] = useState(!user);
   const storageOwner = user?.id || "guest-demo";
   const live = useLiveTransactions(!demo);
@@ -837,6 +846,8 @@ export default function App({
                             day: "numeric",
                             year: "numeric",
                           })}
+                          {" · "}
+                          {formatTime(tx.transaction_time)}
                         </span>
                       </small>
                     </span>
@@ -844,11 +855,16 @@ export default function App({
                       {translateCategory(tx.category, lang)}
                     </span>
                     <span className="transaction-date">
-                      {formatDate(tx.transaction_time, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                      <span className="transaction-date-day">
+                        {formatDate(tx.transaction_time, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <span className="transaction-date-time">
+                        {formatTime(tx.transaction_time)}
+                      </span>
                     </span>
                     <span
                       className={`transaction-amount ${tx.amount < 0 ? "income-text" : ""}`}
@@ -992,7 +1008,7 @@ export default function App({
                     <h3>{tx.normalized_merchant || tx.raw_description}</h3>
                     <p>{tx.anomaly_reason || t.defaultAnomalyReason}</p>
                     <small>
-                      {formatDate(tx.transaction_time)} ·{" "}
+                      {formatDateTime(tx.transaction_time)} ·{" "}
                       {tx.institution_name || t.connectedAccount}
                     </small>
                   </div>
@@ -1082,8 +1098,8 @@ export default function App({
             </div>
             <dl>
               <div>
-                <dt>{t.date}</dt>
-                <dd>{new Date(detail.transaction_time).toLocaleString()}</dd>
+                <dt>{t.dateTime}</dt>
+                <dd>{formatDateTime(detail.transaction_time)}</dd>
               </div>
               <div>
                 <dt>{t.account}</dt>
